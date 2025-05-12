@@ -18,8 +18,9 @@ import {
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import Link from 'next/link';
-import { LayoutGrid, CalendarDays, LogOut, Leaf, UserCircle, Shield, Settings, LineChart } from 'lucide-react';
+import { LayoutGrid, CalendarDays, LogOut, Leaf, UserCircle, Shield, Settings, LineChart, Bot as BotIcon } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
+import CorianderSupportChat from '@/components/CorianderSupportChat';
 
 export default function AppLayout({
   children,
@@ -91,7 +92,16 @@ export default function AppLayout({
                 </SidebarMenuButton>
               </Link>
             </SidebarMenuItem>
-            {/* Add more menu items here if needed */}
+            <SidebarMenuItem>
+               <CorianderSupportChat
+                trigger={
+                  <SidebarMenuButton tooltip="AI Coriander Support">
+                    <BotIcon />
+                    <span>AI Support</span>
+                  </SidebarMenuButton>
+                }
+              />
+            </SidebarMenuItem>
           </SidebarMenu>
         </SidebarContent>
         <SidebarFooter className="p-4 mt-auto">
