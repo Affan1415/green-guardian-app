@@ -59,7 +59,7 @@ export default function DashboardPage() {
     return () => unsubscribe();
   }, []);
 
-  const穩定UpdateFirebaseDevice = useCallback(async (key: ActuatorFirebaseKey, desiredValue: "0" | "1", currentFirebaseValue: "0" | "1" | undefined) => {
+  const updateFirebaseDevice = useCallback(async (key: ActuatorFirebaseKey, desiredValue: "0" | "1", currentFirebaseValue: "0" | "1" | undefined) => {
     if (currentFirebaseValue !== desiredValue) {
       try {
         await database.set(database.ref(`/${key}`), desiredValue);
@@ -136,12 +136,12 @@ export default function DashboardPage() {
       }
       
       // Update actuators
-      穩定UpdateFirebaseDevice("B2", desiredBulbState, firebaseData.B2);
-      穩定UpdateFirebaseDevice("B3", desiredPumpState, firebaseData.B3);
-      穩定UpdateFirebaseDevice("B4", desiredFanState, firebaseData.B4);
-      穩定UpdateFirebaseDevice("B5", desiredLidState, firebaseData.B5);
+      updateFirebaseDevice("B2", desiredBulbState, firebaseData.B2);
+      updateFirebaseDevice("B3", desiredPumpState, firebaseData.B3);
+      updateFirebaseDevice("B4", desiredFanState, firebaseData.B4);
+      updateFirebaseDevice("B5", desiredLidState, firebaseData.B5);
     }
-  }, [firebaseData, currentUser, loadingData, 穩定UpdateFirebaseDevice, toast]);
+  }, [firebaseData, currentUser, loadingData, updateFirebaseDevice, toast]);
 
 
   const handleToggleDevice = async (key: DeviceFirebaseKey, currentValue: "0" | "1" | undefined) => {
@@ -286,3 +286,4 @@ export default function DashboardPage() {
     </div>
   );
 }
+
