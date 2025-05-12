@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter, SheetTrigger } from '@/components/ui/sheet';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Bot, User, Send, Loader2 } from 'lucide-react';
+import { Bot, User, Send, Loader2, Leaf } from 'lucide-react'; // Added Leaf icon
 import { corianderSupportChat, type CorianderSupportChatInput, type CorianderSupportChatOutput } from '@/ai/flows/coriander-support-chat-flow';
 import { cn } from '@/lib/utils';
 
@@ -35,7 +35,7 @@ export default function CorianderSupportChat({ trigger }: CorianderSupportChatPr
         {
           id: 'welcome-bot',
           sender: 'bot',
-          text: "Hello! I'm your AI assistant for Coriander. How can I help you today?",
+          text: "Hello! I'm Green Guardian, your dedicated AI assistant for all things Coriander. How can I help your plants flourish today?",
           timestamp: new Date(),
         }
       ]);
@@ -99,10 +99,10 @@ export default function CorianderSupportChat({ trigger }: CorianderSupportChatPr
       <SheetContent className="w-[90vw] max-w-md sm:max-w-lg flex flex-col p-0 shadow-xl">
         <SheetHeader className="p-4 border-b bg-muted/50">
           <SheetTitle className="flex items-center gap-2 text-lg text-primary">
-            <Bot className="h-6 w-6" /> Coriander AI Support
+            <Leaf className="h-6 w-6 text-primary" /> Green Guardian Support
           </SheetTitle>
           <SheetDescription className="text-xs text-muted-foreground">
-            Ask any questions you have about growing coriander.
+            Ask any questions you have about growing coriander. I'm here to help!
           </SheetDescription>
         </SheetHeader>
         <ScrollArea className="flex-1 p-4 space-y-0 bg-background" ref={scrollAreaRef}>
@@ -113,7 +113,7 @@ export default function CorianderSupportChat({ trigger }: CorianderSupportChatPr
             )}>
               {msg.sender === 'bot' && (
                 <Avatar className="h-8 w-8 flex-shrink-0 border border-primary/20">
-                  <AvatarFallback className="bg-primary text-primary-foreground"><Bot size={18} /></AvatarFallback>
+                  <AvatarFallback className="bg-primary text-primary-foreground"><Leaf size={18} /></AvatarFallback>
                 </Avatar>
               )}
               <div
@@ -142,7 +142,7 @@ export default function CorianderSupportChat({ trigger }: CorianderSupportChatPr
           {isLoading && (
             <div className="flex justify-start items-start gap-2.5 mb-4">
               <Avatar className="h-8 w-8 flex-shrink-0 border border-primary/20">
-                 <AvatarFallback className="bg-primary text-primary-foreground"><Bot size={18} /></AvatarFallback>
+                 <AvatarFallback className="bg-primary text-primary-foreground"><Leaf size={18} /></AvatarFallback>
               </Avatar>
               <div className="bg-secondary text-secondary-foreground rounded-lg px-3.5 py-2.5 text-sm shadow-md rounded-bl-none">
                 <Loader2 className="h-5 w-5 animate-spin text-primary" />
@@ -154,7 +154,7 @@ export default function CorianderSupportChat({ trigger }: CorianderSupportChatPr
           <form onSubmit={handleSendMessage} className="flex w-full items-center space-x-2">
             <Input
               type="text"
-              placeholder="Ask about coriander..."
+              placeholder="Ask Green Guardian..."
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               disabled={isLoading}
@@ -171,3 +171,4 @@ export default function CorianderSupportChat({ trigger }: CorianderSupportChatPr
     </Sheet>
   );
 }
+
