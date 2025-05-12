@@ -12,7 +12,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 
-// Helper to get a user-friendly name for Firebase keys
+// Helpe to get a user-friendly name for Firebase keys
 const getDeviceName = (key: DeviceFirebaseKey): string => {
   switch (key) {
     case 'B2': return 'Bulb';
