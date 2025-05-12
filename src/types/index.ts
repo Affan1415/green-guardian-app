@@ -40,6 +40,16 @@ export interface ActuatorScheduleEntry {
 
 export type FullActuatorSchedule = ActuatorScheduleEntry[];
 
+// --- Type for Historical Data Visualization ---
+export interface HistoricalDataPoint {
+  timestamp: number; // Unix timestamp
+  V1?: number; // Temperature
+  V2?: number; // Humidity
+  V3?: number; // Soil Moisture
+  V4?: number; // Light Intensity
+}
+
+
 // --- Old types, commented out for clarity or if they need to be removed/updated ---
 /*
 export interface SensorData {
@@ -58,3 +68,4 @@ export interface ActuatorData {
 
 export type ActuatorName = keyof ActuatorData; // This would need to change if ActuatorData changes
 */
+

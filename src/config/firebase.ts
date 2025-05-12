@@ -20,7 +20,7 @@ import {
   type DatabaseReference,
   type DataSnapshot,
 } from "firebase/database";
-import type { UserProfile, FirebaseRootData, FullActuatorSchedule } from '@/types';
+import type { UserProfile, FirebaseRootData, HistoricalDataPoint } from '@/types';
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -207,17 +207,24 @@ export const database = {
 export { app as firebaseApp };
 
 
-// Mock function for sensor history, kept as is from original, doesn't use real Firebase for this.
-export const getSensorHistory = async (days: number): Promise<Partial<FirebaseRootData>[]> => {
+// Mock function for sensor history
+export const getSensorHistory = async (days: number): Promise<HistoricalDataPoint[]> => {
   return new Promise((resolve) => {
     setTimeout(() => {
-      const history: Partial<FirebaseRootData>[] = [];
+      const history: HistoricalDataPoint[] = [];
+      const now = new Date();
       for (let i = 0; i < days; i++) {
+        const pastDate = new Date(now);
+        // Iterate from `days - 1` down to `0` to get days in chronological order for the chart
+        pastDate.setDate(now.getDate() - (days - 1 - i)); 
+        pastDate.setHours(12, 0, 0, 0); // Set to noon for consistency
+
         history.push({
-          V1: parseFloat((15 + Math.random() * 20).toFixed(1)), // Temperature
-          V2: Math.floor(30 + Math.random() * 60),          // Humidity
-          V3: Math.floor(20 + Math.random() * 70),          // SoilMoisture
-          V4: Math.floor(200 + Math.random() * 1300),         // Light
+          timestamp: pastDate.getTime(),
+          V1: parseFloat((15 + Math.random() * 20).toFixed(1)), // Temperature (15-35°C)
+          V2: Math.floor(30 + Math.random() * 60),          // Humidity (30-90%)
+          V3: Math.floor(20 + Math.random() * 70),          // SoilMoisture (20-90%)
+          V4: Math.floor(2000 + Math.random() * 8000),        // Light (2000-10000 lux)
         });
       }
       resolve(history);

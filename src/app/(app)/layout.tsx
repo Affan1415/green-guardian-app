@@ -18,7 +18,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import Link from 'next/link';
-import { LayoutGrid, CalendarDays, LogOut, Leaf, UserCircle, Shield, Settings } from 'lucide-react';
+import { LayoutGrid, CalendarDays, LogOut, Leaf, UserCircle, Shield, Settings, LineChart } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 
 export default function AppLayout({
@@ -80,6 +80,14 @@ export default function AppLayout({
                 <SidebarMenuButton tooltip="Schedule Generator">
                   <CalendarDays />
                   <span>Schedule Generator</span>
+                </SidebarMenuButton>
+              </Link>
+            </SidebarMenuItem>
+            <SidebarMenuItem>
+              <Link href="/historical-data" legacyBehavior passHref>
+                <SidebarMenuButton tooltip="Historical Data">
+                  <LineChart />
+                  <span>Historical Data</span>
                 </SidebarMenuButton>
               </Link>
             </SidebarMenuItem>
