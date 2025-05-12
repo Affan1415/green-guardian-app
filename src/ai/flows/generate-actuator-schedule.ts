@@ -10,8 +10,8 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 
-export const ActuatorStateSchema = z.enum(['ON', 'OFF', 'Idle']);
-export const ActuatorScheduleEntrySchema = z.object({
+const ActuatorStateSchema = z.enum(['ON', 'OFF', 'Idle']);
+const ActuatorScheduleEntrySchema = z.object({
   time: z.string().describe('Time of day in HH:MM format (24-hour).'),
   fan: ActuatorStateSchema.describe('Fan status.'),
   pump: ActuatorStateSchema.describe('Water pump status.'),
@@ -19,7 +19,7 @@ export const ActuatorScheduleEntrySchema = z.object({
   bulb: ActuatorStateSchema.describe('Grow light/bulb status.'),
 });
 
-export const GenerateActuatorScheduleInputSchema = z.object({
+const GenerateActuatorScheduleInputSchema = z.object({
   cropType: z.string().describe('The type of crop being grown (e.g., Tomato, Wheat, Corn).'),
   averageTemperature: z.number().describe('The average temperature in Celsius over the past 7 days.'),
   averageHumidity: z.number().describe('The average humidity percentage over the past 7 days.'),
@@ -28,7 +28,7 @@ export const GenerateActuatorScheduleInputSchema = z.object({
 });
 export type GenerateActuatorScheduleInput = z.infer<typeof GenerateActuatorScheduleInputSchema>;
 
-export const GenerateActuatorScheduleOutputSchema = z.object({
+const GenerateActuatorScheduleOutputSchema = z.object({
   schedule: z.array(ActuatorScheduleEntrySchema).describe('A 24-hour actuator control schedule in 15-minute intervals.')
 });
 export type GenerateActuatorScheduleOutput = z.infer<typeof GenerateActuatorScheduleOutputSchema>;
