@@ -4,10 +4,14 @@
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { ChevronRight, Cpu, Eye, SlidersHorizontal, TrendingUp, Droplets, Sun, Wind, Thermometer, Sprout, Power, Github, Mail, HelpCircle, Leaf, MessageSquare, ShieldCheck, CalendarClock, Smartphone, LineChart, CloudSun, MousePointerSquareDashed, Scaling, Lightbulb } from 'lucide-react';
+import { Slider } from "@/components/ui/slider";
+import { ChevronRight, Cpu, Eye, SlidersHorizontal, TrendingUp, Droplets, Sun, Wind, Thermometer, Sprout, Power, Github, Mail, HelpCircle, Leaf, MessageSquare, ShieldCheck, CalendarClock, Smartphone, LineChart, CloudSun, MousePointerSquareDashed, Scaling, Lightbulb, Waves, Zap, Rss } from 'lucide-react';
 import Image from 'next/image';
+import React, { useState } from 'react';
 
 export default function LandingPage() {
+  const [plantFreshness, setPlantFreshness] = useState(50);
+
   const featureCards = [
     {
       icon: Eye,
@@ -47,6 +51,46 @@ export default function LandingPage() {
      { icon: Scaling, title: "Scalable & Adaptable", description: "Whether you have a small home setup or a large commercial greenhouse, GreenGuardian can be tailored to your specific coriander cultivation needs." },
   ];
 
+  const sensorDetails = [
+    {
+      name: "DHT11 Sensor",
+      description: "Measures ambient temperature and humidity, crucial for creating the ideal microclimate for coriander growth and preventing fungal issues.",
+      icon: Thermometer,
+      imageSrc: "https://picsum.photos/300/200",
+      dataAiHint: "temperature humidity sensor",
+    },
+    {
+      name: "Grove Soil Moisture Sensor",
+      description: "Monitors the water content in the soil, enabling precise irrigation to prevent overwatering or underwatering of coriander plants.",
+      icon: Waves,
+      imageSrc: "https://picsum.photos/300/200",
+      dataAiHint: "soil moisture sensor",
+    },
+    {
+      name: "Light Dependent Resistor (LDR)",
+      description: "Detects light intensity, ensuring coriander receives optimal light for photosynthesis, especially when using supplemental grow lights.",
+      icon: Sun,
+      imageSrc: "https://picsum.photos/300/200",
+      dataAiHint: "LDR light sensor",
+    }
+  ];
+
+  const getPlantIconStyle = () => {
+    const hue = 120; // Green
+    const saturation = 30 + (plantFreshness / 100) * 70; // 30% to 100%
+    const lightness = 30 + (plantFreshness / 100) * 30; // 30% to 60%
+    const opacity = 0.6 + (plantFreshness / 100) * 0.4; // 0.6 to 1.0
+    const size = 48 + (plantFreshness / 100) * 48; // 48px to 96px
+
+    return {
+      color: `hsl(${hue}, ${saturation}%, ${lightness}%)`,
+      opacity: opacity,
+      width: `${size}px`,
+      height: `${size}px`,
+      transition: 'color 0.3s ease, opacity 0.3s ease, width 0.3s ease, height 0.3s ease',
+    };
+  };
+
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-lime-50 via-emerald-50 to-green-100 text-gray-800 font-sans">
@@ -65,27 +109,29 @@ export default function LandingPage() {
       </nav>
 
       {/* Hero Section */}
-      <section className="relative py-20 md:py-32 text-white overflow-hidden">
+      <section className="relative py-24 md:py-40 text-white overflow-hidden">
         <Image
-          src="https://picsum.photos/1600/900"
-          alt="Lush green coriander farm background"
+          src="https://picsum.photos/1600/1000"
+          alt="Lush green coriander farm background with dew drops"
           fill
           style={{ objectFit: 'cover' }}
-          className="absolute inset-0 z-0"
-          data-ai-hint="coriander farm"
+          className="absolute inset-0 z-0 brightness-75"
+          data-ai-hint="coriander farm sunrise"
           priority
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-green-800/80 via-emerald-600/60 to-transparent z-0"></div>
+        <div className="absolute inset-0 bg-gradient-to-b from-green-900/70 via-emerald-700/50 to-transparent z-0"></div>
         <div className="container mx-auto px-6 text-center relative z-10">
-          <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-6 leading-tight drop-shadow-lg">
-            Grow Smarter with <span className="text-lime-300">GreenGuardian</span>
+          <h1 className="text-4xl md:text-5xl lg:text-7xl font-extrabold mb-6 leading-tight tracking-tight"
+            style={{ textShadow: '0 2px 4px rgba(0,0,0,0.5)' }}>
+            Grow Smarter with <span className="bg-clip-text text-transparent bg-gradient-to-r from-lime-300 to-emerald-400">GreenGuardian</span>
           </h1>
-          <p className="text-lg md:text-xl lg:text-2xl mb-8 max-w-3xl mx-auto drop-shadow-md">
-            AI-Powered Greenhouse Automation, Perfectly Tuned for Coriander Farming Success.
+          <p className="text-lg md:text-xl lg:text-2xl mb-10 max-w-3xl mx-auto font-medium"
+             style={{ textShadow: '0 1px 3px rgba(0,0,0,0.4)' }}>
+            AI-Powered Greenhouse Automation, Perfectly Tuned for Coriander Farming Success. Maximize your yield, minimize your effort.
           </p>
           <Link href="/dashboard" legacyBehavior passHref>
-            <Button size="lg" className="bg-lime-400 hover:bg-lime-500 text-green-900 font-semibold px-8 py-3 rounded-lg shadow-xl transition-transform transform hover:scale-105">
-              Explore Dashboard <ChevronRight className="ml-2 h-5 w-5" />
+            <Button size="lg" className="bg-lime-400 hover:bg-lime-500 text-green-900 font-semibold px-10 py-4 rounded-lg shadow-xl transition-all transform hover:scale-105 hover:shadow-2xl text-base">
+              Explore Dashboard <ChevronRight className="ml-2 h-6 w-6" />
             </Button>
           </Link>
         </div>
@@ -131,18 +177,71 @@ export default function LandingPage() {
               </p>
               <ul className="space-y-4">
                 {whyCorianderBenefits.map((benefit, index) => (
-                  <li key={index} className="flex items-start p-3 bg-white/60 rounded-lg shadow-sm hover:shadow-md transition-shadow">
-                    <div className="p-2 bg-green-100 rounded-full mr-4 mt-1 flex-shrink-0">
-                      <benefit.icon className="h-6 w-6 text-green-600" />
+                  <li key={index} className="flex items-start p-4 bg-white/60 rounded-lg shadow-sm hover:shadow-md transition-shadow">
+                    <div className="p-3 bg-green-100 rounded-full mr-4 mt-1 flex-shrink-0">
+                      <benefit.icon className="h-7 w-7 text-green-600" />
                     </div>
                     <div>
-                      <h4 className="font-semibold text-green-700">{benefit.title}</h4>
+                      <h4 className="font-semibold text-lg text-green-700">{benefit.title}</h4>
                       <p className="text-sm text-gray-600">{benefit.description}</p>
                     </div>
                   </li>
                 ))}
               </ul>
             </div>
+          </div>
+        </div>
+      </section>
+      
+      {/* Sensors Section */}
+      <section id="sensors" className="py-16 md:py-24 bg-white">
+        <div className="container mx-auto px-6">
+          <h2 className="text-3xl md:text-4xl font-bold text-center mb-4 text-primary">Our Core Sensing Technology</h2>
+          <p className="text-center text-lg text-gray-600 mb-16 max-w-2xl mx-auto">GreenGuardian relies on precise sensors to gather real-time data, ensuring optimal conditions for your coriander.</p>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            {sensorDetails.map((sensor) => (
+              <Card key={sensor.name} className="flex flex-col items-center text-center bg-lime-50/70 shadow-lg hover:shadow-xl transition-shadow border-transparent hover:border-emerald-200 p-6 transform hover:scale-105">
+                <div className="relative w-full h-40 mb-4">
+                  <Image
+                    src={sensor.imageSrc}
+                    alt={sensor.name}
+                    fill
+                    style={{ objectFit: 'contain' }}
+                    className="rounded-md"
+                    data-ai-hint={sensor.dataAiHint}
+                  />
+                </div>
+                <div className="p-2 bg-emerald-100 rounded-full mb-3">
+                  <sensor.icon className="h-8 w-8 text-emerald-600" />
+                </div>
+                <CardTitle className="text-xl text-emerald-700 mb-2">{sensor.name}</CardTitle>
+                <CardDescription className="text-sm text-gray-600">{sensor.description}</CardDescription>
+              </Card>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Interactive Plant Growth Section */}
+      <section id="interactive-growth" className="py-16 md:py-24 bg-green-50">
+        <div className="container mx-auto px-6 text-center">
+          <h2 className="text-3xl md:text-4xl font-bold mb-6 text-primary">Witness the GreenGuardian Effect</h2>
+          <p className="text-lg text-gray-700 mb-10 max-w-xl mx-auto">Adjust the slider to see how GreenGuardian nurtures your coriander towards optimal health and freshness.</p>
+          <div className="flex flex-col items-center gap-8">
+            <div className="p-4 bg-white rounded-full shadow-2xl" style={{ width: '120px', height: '120px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Leaf style={getPlantIconStyle()} />
+            </div>
+            <Slider
+              defaultValue={[plantFreshness]}
+              max={100}
+              step={1}
+              className="w-full max-w-md mx-auto"
+              onValueChange={(value) => setPlantFreshness(value[0])}
+              aria-label="Plant Freshness Slider"
+            />
+            <p className="text-sm text-gray-600">
+              Freshness Level: <span className="font-semibold text-primary">{plantFreshness}%</span>
+            </p>
           </div>
         </div>
       </section>
@@ -154,7 +253,7 @@ export default function LandingPage() {
           <p className="text-center text-lg text-gray-600 mb-16 max-w-2xl mx-auto">GreenGuardian offers a comprehensive suite of tools to elevate your coriander farming experience.</p>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {keyFeatures.map((feature) => (
-              <Card key={feature.title} className="bg-lime-50/70 shadow-lg hover:shadow-xl transition-shadow border-transparent hover:border-emerald-200">
+              <Card key={feature.title} className="bg-lime-50/70 shadow-lg hover:shadow-xl transition-shadow border-transparent hover:border-emerald-200 transform hover:scale-105">
                 <CardHeader className="flex-row items-center gap-4 pb-4">
                   <div className="p-3 bg-emerald-100 rounded-full">
                      <feature.icon className="w-8 h-8 text-emerald-600" />
@@ -237,6 +336,7 @@ export default function LandingPage() {
               <ul className="space-y-2 text-sm">
                 <li><Link href="#how-it-works" className="hover:text-lime-200 transition-colors">How It Works</Link></li>
                 <li><Link href="#why-coriander" className="hover:text-lime-200 transition-colors">Why Coriander?</Link></li>
+                 <li><Link href="#sensors" className="hover:text-lime-200 transition-colors">Our Sensors</Link></li>
                 <li><Link href="#key-features" className="hover:text-lime-200 transition-colors">Key Features</Link></li>
                 <li><Link href="/dashboard" className="hover:text-lime-200 transition-colors">Dashboard</Link></li>
                 <li><Link href="/login" className="hover:text-lime-200 transition-colors">Login</Link></li>
@@ -261,3 +361,4 @@ export default function LandingPage() {
   );
 }
 
+    
