@@ -92,7 +92,7 @@ export default function DashboardPage() {
   return (
     <div className="space-y-8">
       <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
-        <h1 className="text-3xl font-bold text-primary">AgriControl Dashboard</h1>
+        <h1 className="text-3xl font-bold text-primary">Green Guardian Dashboard</h1>
         {isLoading ? (
           <Skeleton className="h-10 w-48" />
         ) : (

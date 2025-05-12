@@ -32,7 +32,7 @@ export default function SignupPage() {
     setIsLoading(true);
     try {
       await signup(email, password);
-      toast({ title: "Signup Successful", description: "Welcome to AgriControl! Redirecting to dashboard..." });
+      toast({ title: "Signup Successful", description: "Welcome to Green Guardian! Redirecting to dashboard..." });
       router.push('/dashboard');
     } catch (err: any) {
       setError(err.message || 'Failed to sign up. Please try again.');
@@ -48,7 +48,7 @@ export default function SignupPage() {
         <div className="mx-auto mb-4 flex items-center justify-center">
           <Leaf className="h-12 w-12 text-primary" />
         </div>
-        <CardTitle className="text-3xl font-bold text-primary">Create AgriControl Account</CardTitle>
+        <CardTitle className="text-3xl font-bold text-primary">Create Green Guardian Account</CardTitle>
         <CardDescription>Join to manage your smart agriculture system.</CardDescription>
       </CardHeader>
       <CardContent>

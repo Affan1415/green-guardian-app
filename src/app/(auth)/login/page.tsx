@@ -26,7 +26,7 @@ export default function LoginPage() {
     setIsLoading(true);
     try {
       await login(email, password);
-      toast({ title: "Login Successful", description: "Welcome back to AgriControl!" });
+      toast({ title: "Login Successful", description: "Welcome back to Green Guardian!" });
       router.push('/dashboard');
     } catch (err: any) {
       setError(err.message || 'Failed to login. Please check your credentials.');
@@ -42,7 +42,7 @@ export default function LoginPage() {
         <div className="mx-auto mb-4 flex items-center justify-center">
           <Leaf className="h-12 w-12 text-primary" />
         </div>
-        <CardTitle className="text-3xl font-bold text-primary">AgriControl Login</CardTitle>
+        <CardTitle className="text-3xl font-bold text-primary">Green Guardian Login</CardTitle>
         <CardDescription>Access your smart agriculture dashboard.</CardDescription>
       </CardHeader>
       <CardContent>

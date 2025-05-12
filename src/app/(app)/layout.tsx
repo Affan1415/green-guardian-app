@@ -40,7 +40,7 @@ export default function AppLayout({
       <div className="flex h-screen w-screen items-center justify-center bg-background">
         <div className="flex items-center space-x-2">
           <Leaf className="h-10 w-10 animate-spin text-primary" />
-          <p className="text-xl text-primary">Loading AgriControl...</p>
+          <p className="text-xl text-primary">Loading Green Guardian...</p>
         </div>
       </div>
     );
@@ -62,7 +62,7 @@ export default function AppLayout({
         <SidebarHeader className="p-4">
           <div className="flex items-center gap-2 group-data-[collapsible=icon]:justify-center">
             <Leaf className="h-8 w-8 text-primary" />
-            <h1 className="text-2xl font-semibold text-primary group-data-[collapsible=icon]:hidden">AgriControl</h1>
+            <h1 className="text-2xl font-semibold text-primary group-data-[collapsible=icon]:hidden">Green Guardian</h1>
           </div>
         </SidebarHeader>
         <SidebarContent>

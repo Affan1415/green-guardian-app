@@ -9,7 +9,7 @@ import { Toaster } from '@/components/ui/toaster';
 // const geistMono = GeistMono; // This was causing the error
 
 export const metadata: Metadata = {
-  title: 'AgriControl',
+  title: 'Green Guardian',
   description: 'Smart Agriculture Management System',
 };
 
