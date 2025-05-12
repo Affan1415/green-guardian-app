@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Slider } from "@/components/ui/slider";
-import { ChevronRight, Cpu, Eye, SlidersHorizontal, TrendingUp, Droplets, Sun, Wind, Thermometer, Sprout, Power, Github, Mail, HelpCircle, Leaf, MessageSquare, ShieldCheck, CalendarClock, Smartphone, LineChart, CloudSun, MousePointerSquareDashed, Scaling, Lightbulb, Waves, Zap, Rss } from 'lucide-react';
+import { ChevronRight, Cpu, Eye, SlidersHorizontal, TrendingUp, Droplets, Sun, Wind, Thermometer, Sprout, Power, Github, Mail, HelpCircle, Leaf, MessageSquare, ShieldCheck, CalendarClock, Smartphone, LineChart, CloudSun, MousePointerSquareDashed, Scaling, Lightbulb, Waves } from 'lucide-react';
 import Image from 'next/image';
 import React, { useState } from 'react';
 
@@ -57,21 +57,21 @@ export default function LandingPage() {
       description: "Measures ambient temperature and humidity, crucial for creating the ideal microclimate for coriander growth and preventing fungal issues.",
       icon: Thermometer,
       imageSrc: "https://picsum.photos/300/200",
-      dataAiHint: "temperature humidity sensor",
+      dataAiHint: "temp sensor",
     },
     {
       name: "Grove Soil Moisture Sensor",
       description: "Monitors the water content in the soil, enabling precise irrigation to prevent overwatering or underwatering of coriander plants.",
       icon: Waves,
       imageSrc: "https://picsum.photos/300/200",
-      dataAiHint: "soil moisture sensor",
+      dataAiHint: "moisture sensor",
     },
     {
       name: "Light Dependent Resistor (LDR)",
       description: "Detects light intensity, ensuring coriander receives optimal light for photosynthesis, especially when using supplemental grow lights.",
       icon: Sun,
       imageSrc: "https://picsum.photos/300/200",
-      dataAiHint: "LDR light sensor",
+      dataAiHint: "light sensor",
     }
   ];
 
@@ -116,7 +116,7 @@ export default function LandingPage() {
           fill
           style={{ objectFit: 'cover' }}
           className="absolute inset-0 z-0 brightness-75"
-          data-ai-hint="coriander farm sunrise"
+          data-ai-hint="coriander farm"
           priority
         />
         <div className="absolute inset-0 bg-gradient-to-b from-green-900/70 via-emerald-700/50 to-transparent z-0"></div>
@@ -360,5 +360,3 @@ export default function LandingPage() {
     </div>
   );
 }
-
-    
