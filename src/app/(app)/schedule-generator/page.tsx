@@ -10,18 +10,19 @@ import { useToast } from '@/hooks/use-toast';
 import { getSensorHistory, database } from '@/config/firebase'; 
 import type { FirebaseRootData, ActuatorScheduleEntry, FullActuatorSchedule, ActuatorState } from '@/types';
 import { Textarea } from '@/components/ui/textarea';
-import { Loader2, Save, CalendarClock } from 'lucide-react';
+import { Loader2, Save, CalendarClock, Edit3 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   generateActuatorSchedule,
   GenerateActuatorScheduleInput,
   GenerateActuatorScheduleOutput
 } from '@/ai/flows/generate-actuator-schedule';
 
-const CROP_TYPES = ['Tomato', 'Lettuce', 'Strawberry', 'Bell Pepper', 'Cucumber', 'Wheat', 'Corn'];
+const FIXED_CROP_TYPE = 'Coriander';
 const ACTUATOR_KEYS: (keyof Omit<ActuatorScheduleEntry, 'time'>)[] = ['fan', 'pump', 'lid', 'bulb'];
 const ACTUATOR_STATES: ActuatorState[] = ['ON', 'OFF', 'Idle'];
 
@@ -57,34 +58,39 @@ export default function ScheduleGeneratorPage() {
   const { currentUser } = useAuth();
   const { toast } = useToast();
 
-  const [cropType, setCropType] = useState<string>(CROP_TYPES[0]);
   const [weatherForecastSummary, setWeatherForecastSummary] = useState<string>(MOCK_WEATHER_FORECAST_SUMMARY);
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [actuatorSchedule, setActuatorSchedule] = useState<FullActuatorSchedule | null>(null);
+  
+  const [scheduleDurationDays, setScheduleDurationDays] = useState<number>(1);
+  const [activeUiDayIndex, setActiveUiDayIndex] = useState<number>(0); // 0-indexed
+  const [actuatorSchedules, setActuatorSchedules] = useState<(FullActuatorSchedule | null)[]>([]);
 
-  // Updated to use FirebaseRootData keys (V1, V2, V3)
+  useEffect(() => {
+    // Initialize schedules array when duration changes
+    setActuatorSchedules(Array(scheduleDurationDays).fill(null));
+    setActiveUiDayIndex(0); // Reset to first day
+  }, [scheduleDurationDays]);
+
+
   const preprocessSensorData = (history: Partial<FirebaseRootData>[]): Omit<GenerateActuatorScheduleInput, 'cropType' | 'weatherForecastSummary'> => {
     if (history.length === 0) {
-      // Provide sensible defaults if history is empty
       return { averageSoilMoistureDrop: 10, averageTemperature: 25, averageHumidity: 60 };
     }
 
-    const avgTemp = history.reduce((sum, data) => sum + (data.V1 || 25), 0) / history.length; // V1 for temperature
-    const avgHumidity = history.reduce((sum, data) => sum + (data.V2 || 60), 0) / history.length; // V2 for humidity
+    const avgTemp = history.reduce((sum, data) => sum + (data.V1 || 25), 0) / history.length;
+    const avgHumidity = history.reduce((sum, data) => sum + (data.V2 || 60), 0) / history.length;
     
     let totalMoistureDrop = 0;
     if (history.length > 1) {
       for (let i = 1; i < history.length; i++) {
-        const prevMoisture = history[i-1].V3 || 50; // V3 for soilMoisture
-        const currentMoisture = history[i].V3 || 50; // V3 for soilMoisture
+        const prevMoisture = history[i-1].V3 || 50;
+        const currentMoisture = history[i].V3 || 50;
         const drop = prevMoisture - currentMoisture;
-        totalMoistureDrop += Math.max(0, drop); // Consider only drops, not increases
+        totalMoistureDrop += Math.max(0, drop);
       }
     }
-    // Average daily drop. If only one day of history, this might not be super accurate.
     const avgDailyMoistureDrop = history.length > 1 ? totalMoistureDrop / (history.length - 1) : 10;
-
 
     return {
       averageSoilMoistureDrop: parseFloat(avgDailyMoistureDrop.toFixed(1)) || 10,
@@ -95,73 +101,83 @@ export default function ScheduleGeneratorPage() {
 
   const handleGenerateSchedule = async (e: FormEvent) => {
     e.preventDefault();
+    if (scheduleDurationDays < 1) {
+        toast({ variant: "destructive", title: "Invalid Duration", description: "Number of days must be at least 1." });
+        return;
+    }
     setIsLoading(true);
-    setActuatorSchedule(null);
+    const newInitialSchedules: (FullActuatorSchedule | null)[] = Array(scheduleDurationDays).fill(null);
+    setActuatorSchedules(newInitialSchedules);
+    setActiveUiDayIndex(0);
 
     try {
-      // getSensorHistory now returns Partial<FirebaseRootData>[]
       const sensorHistory: Partial<FirebaseRootData>[] = await getSensorHistory(7);
       const processedSensorData = preprocessSensorData(sensorHistory);
       
       const input: GenerateActuatorScheduleInput = {
         ...processedSensorData,
-        cropType,
+        cropType: FIXED_CROP_TYPE,
         weatherForecastSummary,
       };
       
-      console.log("AI Input for Actuator Schedule:", input);
-      toast({ title: "Generating Actuator Schedule...", description: `Crop: ${cropType}. Weather: ${weatherForecastSummary.substring(0,50)}...` });
+      console.log("AI Input for Actuator Schedule (Day 1):", input);
+      toast({ title: "Generating Actuator Schedule for Day 1...", description: `Crop: ${FIXED_CROP_TYPE}. Weather context provided.` });
 
       const result: GenerateActuatorScheduleOutput = await generateActuatorSchedule(input);
       
-      if (result.schedule && result.schedule.length > 0) {
-        if (result.schedule.length === 96) {
-            setActuatorSchedule(result.schedule);
-            toast({ title: "Actuator Schedule Generated Successfully!", variant: "default" });
-        } else {
-            console.warn(`AI returned ${result.schedule.length} entries, expected 96. Using fallback.`);
-            setActuatorSchedule(FALLBACK_SCHEDULE); 
-            toast({ title: "Partial Schedule Generated", description: "AI returned an incomplete schedule. Displaying fallback. You may need to adjust it.", variant: "default" });
-        }
-      } else {
-        throw new Error("AI returned an empty or invalid schedule.");
+      const generatedDayOneSchedule = (result.schedule && result.schedule.length === 96) ? result.schedule : [...FALLBACK_SCHEDULE.map(entry => ({...entry}))]; // Deep copy fallback
+
+      const updatedSchedules = [...newInitialSchedules];
+      updatedSchedules[0] = generatedDayOneSchedule;
+
+      for (let i = 1; i < scheduleDurationDays; i++) {
+        updatedSchedules[i] = [...generatedDayOneSchedule.map(entry => ({...entry}))]; // Deep copy for subsequent days
       }
+      setActuatorSchedules(updatedSchedules);
+      toast({ title: "Actuator Schedules Initialized!", variant: "default", description: `Day 1 based on AI, subsequent ${scheduleDurationDays > 1 ? scheduleDurationDays -1 : ''} days copied. Review each day.` });
 
     } catch (err: any) {
       console.error("Error generating actuator schedule:", err);
-      toast({ variant: "destructive", title: "Generation Failed", description: err.message || 'Could not generate schedule. Using fallback.' });
-      setActuatorSchedule(FALLBACK_SCHEDULE);
+      const errorSchedules = Array(scheduleDurationDays).fill(null).map(() => [...FALLBACK_SCHEDULE.map(entry => ({...entry}))] ); // Deep copy fallback
+      setActuatorSchedules(errorSchedules);
+      toast({ variant: "destructive", title: "Generation Failed", description: err.message || `Could not generate schedule. Using fallback for all ${scheduleDurationDays} days.` });
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleScheduleEdit = (rowIndex: number, actuatorKey: keyof Omit<ActuatorScheduleEntry, 'time'>, value: ActuatorState) => {
-    setActuatorSchedule(prevSchedule => {
-      if (!prevSchedule) return null;
-      const newSchedule = [...prevSchedule];
-      newSchedule[rowIndex] = { ...newSchedule[rowIndex], [actuatorKey]: value };
-      return newSchedule;
+  const handleScheduleEdit = (dayIndex: number, rowIndex: number, actuatorKey: keyof Omit<ActuatorScheduleEntry, 'time'>, value: ActuatorState) => {
+    setActuatorSchedules(prevSchedules => {
+      if (!prevSchedules[dayIndex]) return prevSchedules;
+      const newSchedules = [...prevSchedules];
+      const dayScheduleToEdit = [...(newSchedules[dayIndex] as FullActuatorSchedule)];
+      dayScheduleToEdit[rowIndex] = { ...dayScheduleToEdit[rowIndex], [actuatorKey]: value };
+      newSchedules[dayIndex] = dayScheduleToEdit;
+      return newSchedules;
     });
   };
 
   const handleSaveSchedule = async () => {
-    if (!actuatorSchedule || !currentUser?.uid) {
-      toast({ variant: "destructive", title: "Cannot Save", description: "No schedule to save or user not logged in." });
+    if (!currentUser?.uid || !actuatorSchedules[activeUiDayIndex]) {
+      toast({ variant: "destructive", title: "Cannot Save", description: `No schedule to save for Day ${activeUiDayIndex + 1} or user not logged in.` });
       return;
     }
     setIsSaving(true);
     try {
-      // Path for saving is /schedules/{uid}/today
-      await database.set(database.ref(`schedules/${currentUser.uid}/today`), actuatorSchedule);
-      toast({ title: "Schedule Saved!", description: "Today's actuator schedule has been saved successfully." });
+      const scheduleToSave = actuatorSchedules[activeUiDayIndex];
+      // Path for saving is /schedules/{uid}/day-{dayNumber} (1-indexed)
+      const dayNumber = activeUiDayIndex + 1;
+      await database.set(database.ref(`schedules/${currentUser.uid}/day-${dayNumber}`), scheduleToSave);
+      toast({ title: `Schedule for Day ${dayNumber} Saved!`, description: `Actuator schedule for Day ${dayNumber} has been saved successfully.` });
     } catch (error: any) {
       console.error("Error saving schedule:", error);
-      toast({ variant: "destructive", title: "Save Failed", description: error.message || "Could not save the schedule." });
+      toast({ variant: "destructive", title: "Save Failed", description: error.message || `Could not save the schedule for Day ${activeUiDayIndex + 1}.` });
     } finally {
       setIsSaving(false);
     }
   };
+
+  const currentScheduleForTable = actuatorSchedules[activeUiDayIndex];
 
   return (
     <div className="space-y-8">
@@ -171,7 +187,7 @@ export default function ScheduleGeneratorPage() {
             <CalendarClock className="h-7 w-7" /> Actuator Schedule Generator
           </CardTitle>
           <CardDescription>
-            Generate a 24-hour actuator control plan for today based on crop type, sensor trends, and weather forecasts.
+            Generate a 24-hour actuator control plan for {FIXED_CROP_TYPE}, adaptable for multiple days, based on sensor trends and weather forecasts.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -179,21 +195,25 @@ export default function ScheduleGeneratorPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
                 <Label htmlFor="cropType">Crop Type</Label>
-                <Select value={cropType} onValueChange={setCropType}>
-                  <SelectTrigger id="cropType">
-                    <SelectValue placeholder="Select crop type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {CROP_TYPES.map(crop => (
-                      <SelectItem key={crop} value={crop}>{crop}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Input id="cropType" value={FIXED_CROP_TYPE} readOnly className="bg-muted/50" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="scheduleDurationDays">Number of Days for Schedule Plan</Label>
+                <Input
+                  id="scheduleDurationDays"
+                  type="number"
+                  value={scheduleDurationDays}
+                  onChange={(e) => setScheduleDurationDays(Math.max(1, parseInt(e.target.value, 10) || 1))}
+                  min="1"
+                  max="7" // Example max, adjust as needed
+                  className="bg-input/30"
+                  required
+                />
               </div>
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="weatherForecast">7-Day Weather Forecast Summary</Label>
+              <Label htmlFor="weatherForecast">7-Day Weather Forecast Summary (Context for AI)</Label>
               <Textarea
                 id="weatherForecast"
                 value={weatherForecastSummary}
@@ -204,7 +224,7 @@ export default function ScheduleGeneratorPage() {
                 required
               />
               <p className="text-xs text-muted-foreground">
-                Provide a summary including temperature, humidity, and rain expectations for the next 7 days.
+                Provide a summary including temperature, humidity, and rain expectations for the next 7 days. AI will use this to generate Day 1's schedule.
               </p>
             </div>
 
@@ -212,74 +232,93 @@ export default function ScheduleGeneratorPage() {
               {isLoading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Generating Schedule...
+                  Generating Schedules...
                 </>
               ) : (
-                'Generate 24-Hour Schedule'
+                `Generate ${scheduleDurationDays}-Day Plan Base`
               )}
             </Button>
           </form>
         </CardContent>
       </Card>
 
-      {actuatorSchedule && (
+      {actuatorSchedules.some(s => s !== null) && (
         <Card className="mt-8 bg-secondary/30 shadow-xl">
           <CardHeader>
-            <CardTitle className="text-xl text-primary">Generated 24-Hour Actuator Schedule</CardTitle>
-            <CardDescription>Review and edit the schedule below. Values are ON, OFF, or Idle.</CardDescription>
+            <CardTitle className="text-xl text-primary flex items-center gap-2"><Edit3 className="h-6 w-6" /> Edit Actuator Schedules</CardTitle>
+            <CardDescription>Review and edit the schedule for each day. Values are ON, OFF, or Idle.</CardDescription>
           </CardHeader>
           <CardContent>
-            <ScrollArea className="h-[500px] w-full rounded-md border bg-background">
-              <Table>
-                <TableHeader className="sticky top-0 bg-muted z-10">
-                  <TableRow>
-                    <TableHead className="w-[100px]">Time</TableHead>
-                    {ACTUATOR_KEYS.map(key => (
-                      <TableHead key={key} className="capitalize w-[120px]">{key}</TableHead>
-                    ))}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {actuatorSchedule.map((entry, rowIndex) => (
-                    <TableRow key={entry.time}>
-                      <TableCell className="font-medium">{entry.time}</TableCell>
-                      {ACTUATOR_KEYS.map(actuatorKey => (
-                        <TableCell key={actuatorKey}>
-                          <Select
-                            value={entry[actuatorKey]}
-                            onValueChange={(value: ActuatorState) => handleScheduleEdit(rowIndex, actuatorKey, value)}
-                          >
-                            <SelectTrigger className="h-8 text-xs">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {ACTUATOR_STATES.map(state => (
-                                <SelectItem key={state} value={state} className="text-xs">{state}</SelectItem>
+            <Tabs value={String(activeUiDayIndex)} onValueChange={(val) => setActiveUiDayIndex(Number(val))} className="w-full">
+              <TabsList className="grid w-full grid-cols-min(7, scheduleDurationDays) md:flex md:flex-wrap">
+                {Array.from({ length: scheduleDurationDays }, (_, i) => (
+                  <TabsTrigger key={`day-tab-${i}`} value={String(i)}>Day {i + 1}</TabsTrigger>
+                ))}
+              </TabsList>
+              {Array.from({ length: scheduleDurationDays }, (_, i) => (
+                <TabsContent key={`day-content-${i}`} value={String(i)}>
+                  {actuatorSchedules[i] ? (
+                    <ScrollArea className="h-[500px] w-full rounded-md border bg-background mt-4">
+                      <Table>
+                        <TableHeader className="sticky top-0 bg-muted z-10">
+                          <TableRow>
+                            <TableHead className="w-[100px]">Time</TableHead>
+                            {ACTUATOR_KEYS.map(key => (
+                              <TableHead key={key} className="capitalize w-[120px]">{key}</TableHead>
+                            ))}
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {(actuatorSchedules[i] as FullActuatorSchedule).map((entry, rowIndex) => (
+                            <TableRow key={`${entry.time}-day-${i}`}>
+                              <TableCell className="font-medium">{entry.time}</TableCell>
+                              {ACTUATOR_KEYS.map(actuatorKey => (
+                                <TableCell key={`${actuatorKey}-day-${i}-${entry.time}`}>
+                                  <Select
+                                    value={entry[actuatorKey]}
+                                    onValueChange={(value: ActuatorState) => handleScheduleEdit(i, rowIndex, actuatorKey, value)}
+                                  >
+                                    <SelectTrigger className="h-8 text-xs">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {ACTUATOR_STATES.map(state => (
+                                        <SelectItem key={state} value={state} className="text-xs">{state}</SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </TableCell>
                               ))}
-                            </SelectContent>
-                          </Select>
-                        </TableCell>
-                      ))}
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </ScrollArea>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </ScrollArea>
+                  ) : (
+                    <div className="mt-4 p-4 text-center text-muted-foreground">Schedule for Day {i + 1} has not been generated or is empty.</div>
+                  )}
+                </TabsContent>
+              ))}
+            </Tabs>
           </CardContent>
-          <CardFooter className="flex-col items-start space-y-4 sm:flex-row sm:items-center sm:justify-between sm:space-y-0">
+          <CardFooter className="flex-col items-start space-y-4 sm:flex-row sm:items-center sm:justify-between sm:space-y-0 mt-4">
             <p className="text-xs text-muted-foreground">
-              Note: This schedule is a suggestion. Adjust based on real-world observations.
+              Note: AI generates Day 1. Other days are copies. Adjust based on real-world observations.
             </p>
-            <Button onClick={handleSaveSchedule} disabled={isSaving || !currentUser} className="w-full sm:w-auto">
+            <Button 
+              onClick={handleSaveSchedule} 
+              disabled={isSaving || !currentUser || !actuatorSchedules[activeUiDayIndex]} 
+              className="w-full sm:w-auto"
+            >
               {isSaving ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Saving...
+                  Saving Day {activeUiDayIndex + 1}...
                 </>
               ) : (
                 <>
                   <Save className="mr-2 h-4 w-4" />
-                  Save Today&apos;s Schedule
+                  Save Schedule for Day {activeUiDayIndex + 1}
                 </>
               )}
             </Button>
