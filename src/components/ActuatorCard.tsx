@@ -12,11 +12,11 @@ interface ActuatorCardProps {
   status: 'on' | 'off' | null | undefined;
   icon: ReactNode;
   onToggle: () => void;
-  isAdmin: boolean; // Prop kept for potential future use or other conditional UI, but not for disabling toggle
   isLoading?: boolean;
+  isAiModeActive: boolean; // New prop to indicate if AI mode is active
 }
 
-export default function ActuatorCard({ title, status, icon, onToggle, isAdmin, isLoading = false }: ActuatorCardProps) {
+export default function ActuatorCard({ title, status, icon, onToggle, isLoading = false, isAiModeActive }: ActuatorCardProps) {
   const currentStatus = status ?? 'unknown';
   
   return (
@@ -34,14 +34,15 @@ export default function ActuatorCard({ title, status, icon, onToggle, isAdmin, i
             className={cn(
               "text-sm capitalize",
               currentStatus === 'on' && "bg-green-500 hover:bg-green-600 text-white",
-              currentStatus === 'off' && "bg-red-500 hover:bg-red-600 text-white"
+              currentStatus === 'off' && "bg-red-500 hover:bg-red-600 text-white",
+              currentStatus === 'unknown' && "bg-gray-400 text-white"
             )}
           >
             {currentStatus}
           </Badge>
         )}
         <p className="text-xs text-muted-foreground pt-1">
-          Current status
+          Current status {isAiModeActive && "(AI Controlled)"}
         </p>
       </CardContent>
       <CardFooter>
@@ -50,16 +51,15 @@ export default function ActuatorCard({ title, status, icon, onToggle, isAdmin, i
         ) : (
           <Button 
             onClick={onToggle} 
-            disabled={status === null || status === undefined} // Only disable if status is unknown
+            disabled={status === null || status === undefined || isAiModeActive} // Disable if status unknown OR AI mode is active
             className="w-full"
             variant={status === 'on' ? 'destructive' : 'default'}
+            title={isAiModeActive ? "Manual control disabled in AI Mode" : (status === 'on' ? 'Turn OFF' : 'Turn ON')}
           >
-            {status === 'on' ? 'Turn OFF' : 'Turn ON'}
+            {isAiModeActive ? "AI Controlled" : (status === 'on' ? 'Turn OFF' : 'Turn ON')}
           </Button>
         )}
-        {/* The admin-only message is removed */}
       </CardFooter>
     </Card>
   );
 }
-
