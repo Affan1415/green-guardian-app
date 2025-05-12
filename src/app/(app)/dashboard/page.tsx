@@ -1,4 +1,3 @@
-
 "use client";
 import { useEffect, useState, useCallback } from 'react';
 import type { User } from 'firebase/auth';
@@ -85,54 +84,61 @@ export default function DashboardPage() {
       const soilMoisture = typeof firebaseData.V3 === 'number' ? firebaseData.V3 : null;
       const light = typeof firebaseData.V4 === 'number' ? firebaseData.V4 : null;
 
-      let desiredFanState: "0" | "1" = firebaseData.B4 ?? "0"; // Default to current or OFF
-      let desiredLidState: "0" | "1" = firebaseData.B5 ?? "0";
-      let desiredPumpState: "0" | "1" = firebaseData.B3 ?? "0";
-      let desiredBulbState: "0" | "1" = firebaseData.B2 ?? "0";
+      // --- Desired states default to OFF ("0") ---
+      let desiredFanState: "0" | "1" = "0";
+      let desiredLidState: "0" | "1" = "0";
+      let desiredPumpState: "0" | "1" = "0"; // Will be initialized by current state for hysteresis
+      let desiredBulbState: "0" | "1" = "0"; // Will be initialized by current state for hysteresis
 
-      // Fan (B4) logic based on Temperature
-      if (temp !== null) {
+      // --- Fan (B4) Logic ---
+      // Priority: High humidity turns fan ON.
+      // Else, if temp is high, fan ON.
+      // Else, if temp is low, fan OFF.
+      // Default is OFF if no condition met or sensors null.
+      if (humidity !== null && humidity > CORIANDER_THRESHOLDS.HUMIDITY_HIGH_FAN_ON) {
+        desiredFanState = "1";
+      } else if (temp !== null) {
         if (temp > CORIANDER_THRESHOLDS.TEMP_HIGH) {
-          desiredFanState = "1"; // Too hot, turn fan ON
+          desiredFanState = "1";
         } else if (temp < CORIANDER_THRESHOLDS.TEMP_LOW_FAN_OFF) {
-          desiredFanState = "0"; // Cool enough, turn fan OFF (unless humidity is high)
+          desiredFanState = "0"; 
         }
       }
-      // Fan (B4) override by Humidity
-      if (humidity !== null && humidity > CORIANDER_THRESHOLDS.HUMIDITY_HIGH_FAN_ON) {
-         desiredFanState = "1"; // Too humid, turn fan ON
-      }
 
-
-      // Lid (B5) logic based on Humidity and Fan state
+      // --- Lid (B5) Logic ---
+      // Lid opens if humidity is high AND the fan *will be* ON.
+      // Lid closes if humidity is low OR the fan *will be* OFF.
+      // Default is OFF (closed).
       if (humidity !== null) {
         if (humidity > CORIANDER_THRESHOLDS.HUMIDITY_HIGH_LID_OPEN && desiredFanState === "1") {
-          desiredLidState = "1"; // High humidity and fan is on, open lid
+          desiredLidState = "1"; 
         } else if (humidity < CORIANDER_THRESHOLDS.HUMIDITY_LOW_LID_CLOSE || desiredFanState === "0") {
-          desiredLidState = "0"; // Low humidity or fan is off, close lid
+          desiredLidState = "0"; 
         }
       }
 
-      // Pump (B3) logic based on Soil Moisture
-      // Note: This is a simple ON/OFF. Real systems might pulse the pump.
-      // For this implementation, 'ON' means the signal is high until condition changes.
+      // --- Pump (B3) Logic (with Hysteresis) ---
+      desiredPumpState = firebaseData.B3 ?? "0"; // Initialize with current state for hysteresis
       if (soilMoisture !== null) {
         if (soilMoisture < CORIANDER_THRESHOLDS.SOIL_MOISTURE_LOW_PUMP_ON) {
-          desiredPumpState = "1"; // Too dry, turn pump ON
+          desiredPumpState = "1"; 
         } else if (soilMoisture > CORIANDER_THRESHOLDS.SOIL_MOISTURE_HIGH_PUMP_OFF) {
-          desiredPumpState = "0"; // Wet enough, turn pump OFF
+          desiredPumpState = "0"; 
         }
-        // If in the dead-band and pump is on, it stays on until > HIGH_PUMP_OFF
-        // If in the dead-band and pump is off, it stays off until < LOW_PUMP_ON
+      } else {
+        desiredPumpState = "0"; // Default to OFF if sensor data unavailable
       }
 
-      // Bulb (B2) logic based on Light Intensity (simplified, no time-of-day check)
+      // --- Bulb (B2) Logic (with Hysteresis) ---
+      desiredBulbState = firebaseData.B2 ?? "0"; // Initialize with current state for hysteresis
       if (light !== null) {
         if (light < CORIANDER_THRESHOLDS.LIGHT_LOW_BULB_ON) {
-          desiredBulbState = "1"; // Too dark, turn bulb ON
+          desiredBulbState = "1";
         } else if (light > CORIANDER_THRESHOLDS.LIGHT_HIGH_BULB_OFF) {
-          desiredBulbState = "0"; // Bright enough, turn bulb OFF
+          desiredBulbState = "0";
         }
+      } else {
+        desiredBulbState = "0"; // Default to OFF if sensor data unavailable
       }
       
       // Update actuators
@@ -276,8 +282,8 @@ export default function DashboardPage() {
         <ul className="list-disc list-inside text-sm text-muted-foreground space-y-1 mt-2">
           <li><strong>Fan:</strong> ON if Temp &gt; {CORIANDER_THRESHOLDS.TEMP_HIGH}°C or Humidity &gt; {CORIANDER_THRESHOLDS.HUMIDITY_HIGH_FAN_ON}%. OFF if Temp &lt; {CORIANDER_THRESHOLDS.TEMP_LOW_FAN_OFF}°C (and humidity permits).</li>
           <li><strong>Lid:</strong> OPEN if Humidity &gt; {CORIANDER_THRESHOLDS.HUMIDITY_HIGH_LID_OPEN}% and Fan is ON. CLOSE if Humidity &lt; {CORIANDER_THRESHOLDS.HUMIDITY_LOW_LID_CLOSE}% or Fan is OFF.</li>
-          <li><strong>Water Pump:</strong> ON if Soil Moisture &lt; {CORIANDER_THRESHOLDS.SOIL_MOISTURE_LOW_PUMP_ON}%. OFF if Soil Moisture &gt; {CORIANDER_THRESHOLDS.SOIL_MOISTURE_HIGH_PUMP_OFF}%.</li>
-          <li><strong>Grow Light:</strong> ON if Light Intensity &lt; {CORIANDER_THRESHOLDS.LIGHT_LOW_BULB_ON} lux. OFF if Light Intensity &gt; {CORIANDER_THRESHOLDS.LIGHT_HIGH_BULB_OFF} lux.</li>
+          <li><strong>Water Pump:</strong> ON if Soil Moisture &lt; {CORIANDER_THRESHOLDS.SOIL_MOISTURE_LOW_PUMP_ON}%. OFF if Soil Moisture &gt; {CORIANDER_THRESHOLDS.SOIL_MOISTURE_HIGH_PUMP_OFF}%. (Uses hysteresis)</li>
+          <li><strong>Grow Light:</strong> ON if Light Intensity &lt; {CORIANDER_THRESHOLDS.LIGHT_LOW_BULB_ON} lux. OFF if Light Intensity &gt; {CORIANDER_THRESHOLDS.LIGHT_HIGH_BULB_OFF} lux. (Uses hysteresis)</li>
         </ul>
         <p className="text-xs text-muted-foreground mt-3">
           Note: This is a simplified AI logic. For more robust control, especially for critical operations like pumping, timed actions or more advanced algorithms (e.g., PID controllers, machine learning models trained on historical data) are recommended in a production environment. The current AI mode directly sets actuators ON/OFF based on thresholds.
@@ -286,4 +292,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-
