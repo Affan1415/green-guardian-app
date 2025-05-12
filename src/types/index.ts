@@ -20,3 +20,15 @@ export interface ActuatorData {
 }
 
 export type ActuatorName = keyof ActuatorData;
+
+export type ActuatorState = 'ON' | 'OFF' | 'Idle';
+
+export interface ActuatorScheduleEntry {
+  time: string; // HH:MM format
+  fan: ActuatorState;
+  pump: ActuatorState;
+  lid: ActuatorState;
+  bulb: ActuatorState;
+}
+
+export type FullActuatorSchedule = ActuatorScheduleEntry[];
