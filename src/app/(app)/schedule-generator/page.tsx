@@ -1,4 +1,3 @@
-
 "use client";
 import type { ChangeEvent, FormEvent } from 'react';
 import React, { useState, useEffect } from 'react';
@@ -10,7 +9,7 @@ import { useToast } from '@/hooks/use-toast';
 import { getSensorHistory, database } from '@/config/firebase'; 
 import type { FirebaseRootData, ActuatorScheduleEntry, FullActuatorSchedule, ActuatorState } from '@/types';
 import { Textarea } from '@/components/ui/textarea';
-import { Loader2, Save, CalendarClock, Edit3, Download } from 'lucide-react';
+import { Loader2, Save, CalendarClock, Edit3, Download, CloudSun } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -25,6 +24,10 @@ import {
 const FIXED_CROP_TYPE = 'Coriander';
 const ACTUATOR_KEYS: (keyof Omit<ActuatorScheduleEntry, 'time'>)[] = ['fan', 'pump', 'lid', 'bulb'];
 const ACTUATOR_STATES: ActuatorState[] = ['ON', 'OFF', 'Idle'];
+
+// IMPORTANT: Move this key to an environment variable (e.g., NEXT_PUBLIC_WEATHER_API_KEY) in a real application!
+const WEATHER_API_KEY = 'e5016b764c7140f792d214117251205'; 
+const WEATHER_API_LOCATION = 'Lahore'; // Default location, can be made dynamic
 
 const generateTimeSlots = (): string[] => {
   const slots: string[] = [];
@@ -44,7 +47,6 @@ const FALLBACK_SCHEDULE: FullActuatorSchedule = generateTimeSlots().map(time => 
   bulb: 'OFF',
 }));
 
-// TODO: Replace MOCK_WEATHER_FORECAST_SUMMARY with data from a real weather API (e.g., OpenWeatherMap)
 const MOCK_WEATHER_FORECAST_SUMMARY = `Day 1 (Today): Sunny, Max Temp: 28°C, Min Temp: 18°C, Humidity: 60%, Chance of Rain: 10%.
 Day 2: Partly cloudy, Max Temp: 27°C, Min Temp: 17°C, Humidity: 65%, Chance of Rain: 20%.
 Day 3: Cloudy with light rain in afternoon, Max Temp: 25°C, Min Temp: 16°C, Humidity: 75%, Chance of Rain: 60%.
@@ -53,14 +55,67 @@ Day 5: Scattered showers, Max Temp: 26°C, Min Temp: 17°C, Humidity: 70%, Chanc
 Day 6: Mostly sunny, Max Temp: 30°C, Min Temp: 20°C, Humidity: 50%, Chance of Rain: 10%.
 Day 7: Cloudy, Max Temp: 27°C, Min Temp: 18°C, Humidity: 68%, Chance of Rain: 30%.`;
 
+interface WeatherApiForecastDay {
+  date: string;
+  day: {
+    maxtemp_c: number;
+    mintemp_c: number;
+    avghumidity: number;
+    condition: {
+      text: string;
+    };
+    daily_chance_of_rain: number;
+  };
+}
+
+interface WeatherApiResponse {
+  forecast: {
+    forecastday: WeatherApiForecastDay[];
+  };
+}
+
+async function fetchAndFormatWeather(apiKey: string, location: string, days: number = 7): Promise<string | null> {
+  if (!apiKey) {
+    console.warn("Weather API key not provided. Using mock data.");
+    return null; 
+  }
+  const url = `https://api.weatherapi.com/v1/forecast.json?key=${apiKey}&q=${location}&days=${days}&aqi=no&alerts=no`;
+  try {
+    const response = await fetch(url);
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({})); // Try to get error message from API
+      console.error(`WeatherAPI request failed with status ${response.status}`, errorData);
+      throw new Error(`WeatherAPI request failed: ${errorData?.error?.message || response.statusText}`);
+    }
+    const data: WeatherApiResponse = await response.json();
+    
+    if (!data.forecast || !data.forecast.forecastday || data.forecast.forecastday.length === 0) {
+      console.warn("WeatherAPI response did not contain valid forecast data.");
+      return null;
+    }
+
+    let summary = "";
+    data.forecast.forecastday.forEach((item, index) => {
+      const dayLabel = index === 0 ? "Day 1 (Today)" : `Day ${index + 1}`;
+      const dateObj = new Date(item.date + 'T00:00:00'); // Ensure date is parsed correctly
+      summary += `${dayLabel} (${dateObj.toLocaleDateString('en-US', { weekday: 'short' })}): ${item.day.condition.text}, Max Temp: ${item.day.maxtemp_c}°C, Min Temp: ${item.day.mintemp_c}°C, Avg Humidity: ${item.day.avghumidity}%, Chance of Rain: ${item.day.daily_chance_of_rain}%. \n`;
+    });
+    return summary.trim();
+  } catch (error) {
+    console.error("Error fetching or formatting weather data:", error);
+    return null;
+  }
+}
+
 
 export default function ScheduleGeneratorPage() {
   const { currentUser } = useAuth();
   const { toast } = useToast();
 
-  // TODO: Fetch real weather data and update this state.
   const [weatherForecastSummary, setWeatherForecastSummary] = useState<string>(MOCK_WEATHER_FORECAST_SUMMARY);
+  const [isWeatherLive, setIsWeatherLive] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isFetchingWeather, setIsFetchingWeather] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   
   const [scheduleDurationDays, setScheduleDurationDays] = useState<number>(1);
@@ -68,15 +123,13 @@ export default function ScheduleGeneratorPage() {
   const [actuatorSchedules, setActuatorSchedules] = useState<(FullActuatorSchedule | null)[]>([]);
 
   useEffect(() => {
-    // Initialize schedules array when duration changes
     setActuatorSchedules(Array(scheduleDurationDays).fill(null));
-    setActiveUiDayIndex(0); // Reset to first day
+    setActiveUiDayIndex(0);
   }, [scheduleDurationDays]);
 
 
   const preprocessSensorData = (history: Partial<FirebaseRootData>[]): Omit<GenerateActuatorScheduleInput, 'cropType' | 'weatherForecastSummary'> => {
     if (history.length === 0) {
-      // Provide default sensible values if no history is available
       toast({
         title: "No Sensor History",
         description: "Using default sensor averages (Temp: 25°C, Humidity: 60%, Moisture Drop: 10%). Generate data on dashboard first.",
@@ -96,12 +149,12 @@ export default function ScheduleGeneratorPage() {
         const currentMoisture = history[i].V3;
         if (typeof prevMoisture === 'number' && typeof currentMoisture === 'number') {
           const drop = prevMoisture - currentMoisture;
-          totalMoistureDrop += Math.max(0, drop); // Consider only drops, not increases
+          totalMoistureDrop += Math.max(0, drop);
           validMoistureReadings++;
         }
       }
     }
-    const avgDailyMoistureDrop = validMoistureReadings > 0 ? totalMoistureDrop / validMoistureReadings : 10; // Default to 10% if no valid drops
+    const avgDailyMoistureDrop = validMoistureReadings > 0 ? totalMoistureDrop / validMoistureReadings : 10;
 
     return {
       averageSoilMoistureDrop: parseFloat(avgDailyMoistureDrop.toFixed(1)) || 10,
@@ -116,28 +169,49 @@ export default function ScheduleGeneratorPage() {
         toast({ variant: "destructive", title: "Invalid Duration", description: "Number of days must be at least 1." });
         return;
     }
-    setIsLoading(true);
+    setIsLoading(true); // Covers both weather fetching and AI generation
     const newInitialSchedules: (FullActuatorSchedule | null)[] = Array(scheduleDurationDays).fill(null);
     setActuatorSchedules(newInitialSchedules);
     setActiveUiDayIndex(0);
 
+    let currentForecastSummary = MOCK_WEATHER_FORECAST_SUMMARY;
+    setIsWeatherLive(false); // Assume mock initially
+
+    setIsFetchingWeather(true);
+    toast({ title: "Fetching Weather Data...", description: `Attempting to get forecast for ${WEATHER_API_LOCATION}.` });
     try {
-      const sensorHistory: Partial<FirebaseRootData>[] = await getSensorHistory(7); // Fetches mock sensor history
+      const fetchedWeather = await fetchAndFormatWeather(WEATHER_API_KEY, WEATHER_API_LOCATION, 7);
+      if (fetchedWeather) {
+        currentForecastSummary = fetchedWeather;
+        setWeatherForecastSummary(fetchedWeather); // Update state for UI
+        setIsWeatherLive(true);
+        toast({ title: "Weather Data Fetched!", description: `Using live forecast for ${WEATHER_API_LOCATION}.` });
+      } else {
+        setWeatherForecastSummary(MOCK_WEATHER_FORECAST_SUMMARY); // Ensure UI shows mock if fetch failed
+        setIsWeatherLive(false);
+        toast({ variant: "default", title: "Weather Fetch Failed/Invalid", description: "Using mock weather forecast data." });
+      }
+    } catch (weatherError: any) {
+        console.error("Weather fetch error during generation process:", weatherError);
+        setWeatherForecastSummary(MOCK_WEATHER_FORECAST_SUMMARY);
+        setIsWeatherLive(false);
+        toast({ variant: "destructive", title: "Weather API Error", description: weatherError.message || "Could not fetch live weather data. Using mock data." });
+    } finally {
+        setIsFetchingWeather(false);
+    }
+
+    try {
+      const sensorHistory: Partial<FirebaseRootData>[] = await getSensorHistory(7); 
       const processedSensorData = preprocessSensorData(sensorHistory);
       
-      // TODO: In a real application, fetch real weather data here and format it into weatherForecastSummary.
-      // const realWeatherForecast = await fetchWeatherFromAPI();
-      // const formattedWeatherSummary = formatRealWeatherForAI(realWeatherForecast);
-      // For now, we use the MOCK_WEATHER_FORECAST_SUMMARY directly from state.
-
       const input: GenerateActuatorScheduleInput = {
         ...processedSensorData,
         cropType: FIXED_CROP_TYPE,
-        weatherForecastSummary, // Uses state value, which is MOCK_WEATHER_FORECAST_SUMMARY
+        weatherForecastSummary: currentForecastSummary, // Use the determined forecast
       };
       
       console.log("AI Input for Actuator Schedule (Day 1):", input);
-      toast({ title: "Generating Actuator Schedule for Day 1...", description: `Crop: ${FIXED_CROP_TYPE}. Weather context provided.` });
+      toast({ title: "Generating Actuator Schedule for Day 1...", description: `Crop: ${FIXED_CROP_TYPE}. Weather context provided (${isWeatherLive ? 'Live' : 'Mock'}).` });
 
       const result: GenerateActuatorScheduleOutput = await generateActuatorSchedule(input);
       
@@ -146,7 +220,6 @@ export default function ScheduleGeneratorPage() {
       const updatedSchedules = [...newInitialSchedules];
       updatedSchedules[0] = generatedDayOneSchedule;
 
-      // For subsequent days, copy the Day 1 schedule as a base
       for (let i = 1; i < scheduleDurationDays; i++) {
         updatedSchedules[i] = [...generatedDayOneSchedule.map(entry => ({...entry}))]; 
       }
@@ -155,19 +228,20 @@ export default function ScheduleGeneratorPage() {
 
     } catch (err: any) {
       console.error("Error generating actuator schedule:", err);
+      // Ensure schedules are initialized with fallbacks even if AI fails
       const errorSchedules = Array(scheduleDurationDays).fill(null).map(() => [...FALLBACK_SCHEDULE.map(entry => ({...entry}))] );
       setActuatorSchedules(errorSchedules);
-      toast({ variant: "destructive", title: "Generation Failed", description: err.message || `Could not generate schedule. Using fallback for all ${scheduleDurationDays} days.` });
+      toast({ variant: "destructive", title: "AI Generation Failed", description: err.message || `Could not generate schedule. Using fallback for all ${scheduleDurationDays} days.` });
     } finally {
-      setIsLoading(false);
+      setIsLoading(false); // Overall loading false
     }
   };
 
   const handleScheduleEdit = (dayIndex: number, rowIndex: number, actuatorKey: keyof Omit<ActuatorScheduleEntry, 'time'>, value: ActuatorState) => {
     setActuatorSchedules(prevSchedules => {
-      if (!prevSchedules[dayIndex]) return prevSchedules; // Should not happen if initialized
+      if (!prevSchedules[dayIndex]) return prevSchedules;
       const newSchedules = [...prevSchedules];
-      const dayScheduleToEdit = [...(newSchedules[dayIndex] as FullActuatorSchedule)]; // Ensure deep copy
+      const dayScheduleToEdit = [...(newSchedules[dayIndex] as FullActuatorSchedule)]; 
       dayScheduleToEdit[rowIndex] = { ...dayScheduleToEdit[rowIndex], [actuatorKey]: value };
       newSchedules[dayIndex] = dayScheduleToEdit;
       return newSchedules;
@@ -183,7 +257,6 @@ export default function ScheduleGeneratorPage() {
     try {
       const scheduleToSave = actuatorSchedules[activeUiDayIndex];
       const dayNumber = activeUiDayIndex + 1;
-      // Saves to Firebase Realtime Database
       await database.set(database.ref(`schedules/${currentUser.uid}/day-${dayNumber}`), scheduleToSave);
       toast({ title: `Schedule for Day ${dayNumber} Saved!`, description: `Actuator schedule for Day ${dayNumber} has been saved to the database.` });
     } catch (error: any) {
@@ -214,16 +287,19 @@ export default function ScheduleGeneratorPage() {
 
     const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement("a");
-    const url = URL.createObjectURL(blob);
-    link.setAttribute("href", url);
-    link.setAttribute("download", `green_guardian_schedule_day_${activeUiDayIndex + 1}.csv`);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-    
-    toast({ title: `CSV Downloaded`, description: `Schedule for Day ${activeUiDayIndex + 1} has been downloaded.` });
+    if (typeof window !== "undefined") { // Ensure window context for URL.createObjectURL
+        const url = URL.createObjectURL(blob);
+        link.setAttribute("href", url);
+        link.setAttribute("download", `green_guardian_schedule_day_${activeUiDayIndex + 1}.csv`);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        toast({ title: `CSV Downloaded`, description: `Schedule for Day ${activeUiDayIndex + 1} has been downloaded.` });
+    } else {
+        toast({ variant: "destructive", title: "Download Error", description: "Cannot initiate download outside browser."})
+    }
   };
 
 
@@ -236,7 +312,7 @@ export default function ScheduleGeneratorPage() {
           </CardTitle>
           <CardDescription>
             Generate a 24-hour actuator control plan for {FIXED_CROP_TYPE}, adaptable for multiple days, based on sensor trends and weather forecasts.
-            Sensor data is currently mocked for demonstration. Weather forecast is also mocked.
+            Sensor data is currently mocked for demonstration.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -262,27 +338,28 @@ export default function ScheduleGeneratorPage() {
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="weatherForecast">7-Day Weather Forecast Summary (Context for AI - Currently Mocked)</Label>
+              <Label htmlFor="weatherForecast" className="flex items-center gap-2">
+                 <CloudSun className="h-5 w-5 text-primary" /> 7-Day Weather Forecast Summary (Context for AI)
+              </Label>
               <Textarea
                 id="weatherForecast"
                 value={weatherForecastSummary}
-                onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setWeatherForecastSummary(e.target.value)}
-                placeholder="Enter 7-day weather forecast summary..."
-                rows={5}
-                className="bg-input/30"
-                required
+                readOnly
+                placeholder="Weather forecast will be displayed here after fetching..."
+                rows={7}
+                className="bg-muted/50 text-sm"
               />
               <p className="text-xs text-muted-foreground">
-                Provide a summary including temperature, humidity, and rain expectations for the next 7 days. AI will use this to generate Day 1's schedule.
-                In a production app, this would be fetched from a weather API.
+                {isFetchingWeather && !isLoading ? "Fetching live weather..." : `Displayed forecast is ${isWeatherLive ? `live for ${WEATHER_API_LOCATION}` : 'mock data'}.`}
+                 Note: API Key is currently hardcoded; move to .env for production.
               </p>
             </div>
 
-            <Button type="submit" className="w-full sm:w-auto" disabled={isLoading}>
-              {isLoading ? (
+            <Button type="submit" className="w-full sm:w-auto" disabled={isLoading || isFetchingWeather}>
+              {isLoading || isFetchingWeather ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Generating Schedules...
+                  {isFetchingWeather && !isLoading ? 'Fetching Weather...' : 'Generating Plan...'}
                 </>
               ) : (
                 `Generate ${scheduleDurationDays}-Day Plan Base`
@@ -300,9 +377,9 @@ export default function ScheduleGeneratorPage() {
           </CardHeader>
           <CardContent>
             <Tabs value={String(activeUiDayIndex)} onValueChange={(val) => setActiveUiDayIndex(Number(val))} className="w-full">
-              <TabsList className="grid w-full grid-cols-min(7, scheduleDurationDays) md:flex md:flex-wrap">
+              <TabsList className="grid w-full md:flex md:flex-wrap" style={{gridTemplateColumns: `repeat(${Math.min(scheduleDurationDays, 7)}, minmax(0, 1fr))`}}>
                 {Array.from({ length: scheduleDurationDays }, (_, i) => (
-                  <TabsTrigger key={`day-tab-${i}`} value={String(i)}>Day {i + 1}</TabsTrigger>
+                  <TabsTrigger key={`day-tab-${i}`} value={String(i)} className="flex-1 min-w-[80px]">Day {i + 1}</TabsTrigger>
                 ))}
               </TabsList>
               {Array.from({ length: scheduleDurationDays }, (_, i) => (
@@ -345,7 +422,7 @@ export default function ScheduleGeneratorPage() {
                       </Table>
                     </ScrollArea>
                   ) : (
-                    <div className="mt-4 p-4 text-center text-muted-foreground">Schedule for Day {i + 1} has not been generated or is empty. Review generation form.</div>
+                    <div className="mt-4 p-4 text-center text-muted-foreground">Schedule for Day {i + 1} has not been generated or is empty. Please click "Generate Plan Base".</div>
                   )}
                 </TabsContent>
               ))}
@@ -390,3 +467,4 @@ export default function ScheduleGeneratorPage() {
   );
 }
 
+    
