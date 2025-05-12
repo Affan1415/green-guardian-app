@@ -10,7 +10,7 @@ import { useToast } from '@/hooks/use-toast';
 import { getSensorHistory, database } from '@/config/firebase'; 
 import type { FirebaseRootData, ActuatorScheduleEntry, FullActuatorSchedule, ActuatorState } from '@/types';
 import { Textarea } from '@/components/ui/textarea';
-import { Loader2, Save, CalendarClock, Edit3 } from 'lucide-react';
+import { Loader2, Save, CalendarClock, Edit3, Download } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -18,8 +18,8 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   generateActuatorSchedule,
-  GenerateActuatorScheduleInput,
-  GenerateActuatorScheduleOutput
+  type GenerateActuatorScheduleInput,
+  type GenerateActuatorScheduleOutput
 } from '@/ai/flows/generate-actuator-schedule';
 
 const FIXED_CROP_TYPE = 'Coriander';
@@ -44,7 +44,7 @@ const FALLBACK_SCHEDULE: FullActuatorSchedule = generateTimeSlots().map(time => 
   bulb: 'OFF',
 }));
 
-
+// TODO: Replace MOCK_WEATHER_FORECAST_SUMMARY with data from a real weather API (e.g., OpenWeatherMap)
 const MOCK_WEATHER_FORECAST_SUMMARY = `Day 1 (Today): Sunny, Max Temp: 28°C, Min Temp: 18°C, Humidity: 60%, Chance of Rain: 10%.
 Day 2: Partly cloudy, Max Temp: 27°C, Min Temp: 17°C, Humidity: 65%, Chance of Rain: 20%.
 Day 3: Cloudy with light rain in afternoon, Max Temp: 25°C, Min Temp: 16°C, Humidity: 75%, Chance of Rain: 60%.
@@ -58,6 +58,7 @@ export default function ScheduleGeneratorPage() {
   const { currentUser } = useAuth();
   const { toast } = useToast();
 
+  // TODO: Fetch real weather data and update this state.
   const [weatherForecastSummary, setWeatherForecastSummary] = useState<string>(MOCK_WEATHER_FORECAST_SUMMARY);
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -75,22 +76,32 @@ export default function ScheduleGeneratorPage() {
 
   const preprocessSensorData = (history: Partial<FirebaseRootData>[]): Omit<GenerateActuatorScheduleInput, 'cropType' | 'weatherForecastSummary'> => {
     if (history.length === 0) {
+      // Provide default sensible values if no history is available
+      toast({
+        title: "No Sensor History",
+        description: "Using default sensor averages (Temp: 25°C, Humidity: 60%, Moisture Drop: 10%). Generate data on dashboard first.",
+        variant: "default"
+      });
       return { averageSoilMoistureDrop: 10, averageTemperature: 25, averageHumidity: 60 };
     }
 
-    const avgTemp = history.reduce((sum, data) => sum + (data.V1 || 25), 0) / history.length;
-    const avgHumidity = history.reduce((sum, data) => sum + (data.V2 || 60), 0) / history.length;
+    const avgTemp = history.reduce((sum, data) => sum + (data.V1 ?? 25), 0) / history.length;
+    const avgHumidity = history.reduce((sum, data) => sum + (data.V2 ?? 60), 0) / history.length;
     
     let totalMoistureDrop = 0;
+    let validMoistureReadings = 0;
     if (history.length > 1) {
       for (let i = 1; i < history.length; i++) {
-        const prevMoisture = history[i-1].V3 || 50;
-        const currentMoisture = history[i].V3 || 50;
-        const drop = prevMoisture - currentMoisture;
-        totalMoistureDrop += Math.max(0, drop);
+        const prevMoisture = history[i-1].V3;
+        const currentMoisture = history[i].V3;
+        if (typeof prevMoisture === 'number' && typeof currentMoisture === 'number') {
+          const drop = prevMoisture - currentMoisture;
+          totalMoistureDrop += Math.max(0, drop); // Consider only drops, not increases
+          validMoistureReadings++;
+        }
       }
     }
-    const avgDailyMoistureDrop = history.length > 1 ? totalMoistureDrop / (history.length - 1) : 10;
+    const avgDailyMoistureDrop = validMoistureReadings > 0 ? totalMoistureDrop / validMoistureReadings : 10; // Default to 10% if no valid drops
 
     return {
       averageSoilMoistureDrop: parseFloat(avgDailyMoistureDrop.toFixed(1)) || 10,
@@ -111,13 +122,18 @@ export default function ScheduleGeneratorPage() {
     setActiveUiDayIndex(0);
 
     try {
-      const sensorHistory: Partial<FirebaseRootData>[] = await getSensorHistory(7);
+      const sensorHistory: Partial<FirebaseRootData>[] = await getSensorHistory(7); // Fetches mock sensor history
       const processedSensorData = preprocessSensorData(sensorHistory);
       
+      // TODO: In a real application, fetch real weather data here and format it into weatherForecastSummary.
+      // const realWeatherForecast = await fetchWeatherFromAPI();
+      // const formattedWeatherSummary = formatRealWeatherForAI(realWeatherForecast);
+      // For now, we use the MOCK_WEATHER_FORECAST_SUMMARY directly from state.
+
       const input: GenerateActuatorScheduleInput = {
         ...processedSensorData,
         cropType: FIXED_CROP_TYPE,
-        weatherForecastSummary,
+        weatherForecastSummary, // Uses state value, which is MOCK_WEATHER_FORECAST_SUMMARY
       };
       
       console.log("AI Input for Actuator Schedule (Day 1):", input);
@@ -125,20 +141,21 @@ export default function ScheduleGeneratorPage() {
 
       const result: GenerateActuatorScheduleOutput = await generateActuatorSchedule(input);
       
-      const generatedDayOneSchedule = (result.schedule && result.schedule.length === 96) ? result.schedule : [...FALLBACK_SCHEDULE.map(entry => ({...entry}))]; // Deep copy fallback
+      const generatedDayOneSchedule = (result.schedule && result.schedule.length === 96) ? result.schedule : [...FALLBACK_SCHEDULE.map(entry => ({...entry}))]; 
 
       const updatedSchedules = [...newInitialSchedules];
       updatedSchedules[0] = generatedDayOneSchedule;
 
+      // For subsequent days, copy the Day 1 schedule as a base
       for (let i = 1; i < scheduleDurationDays; i++) {
-        updatedSchedules[i] = [...generatedDayOneSchedule.map(entry => ({...entry}))]; // Deep copy for subsequent days
+        updatedSchedules[i] = [...generatedDayOneSchedule.map(entry => ({...entry}))]; 
       }
       setActuatorSchedules(updatedSchedules);
       toast({ title: "Actuator Schedules Initialized!", variant: "default", description: `Day 1 based on AI, subsequent ${scheduleDurationDays > 1 ? scheduleDurationDays -1 : ''} days copied. Review each day.` });
 
     } catch (err: any) {
       console.error("Error generating actuator schedule:", err);
-      const errorSchedules = Array(scheduleDurationDays).fill(null).map(() => [...FALLBACK_SCHEDULE.map(entry => ({...entry}))] ); // Deep copy fallback
+      const errorSchedules = Array(scheduleDurationDays).fill(null).map(() => [...FALLBACK_SCHEDULE.map(entry => ({...entry}))] );
       setActuatorSchedules(errorSchedules);
       toast({ variant: "destructive", title: "Generation Failed", description: err.message || `Could not generate schedule. Using fallback for all ${scheduleDurationDays} days.` });
     } finally {
@@ -148,9 +165,9 @@ export default function ScheduleGeneratorPage() {
 
   const handleScheduleEdit = (dayIndex: number, rowIndex: number, actuatorKey: keyof Omit<ActuatorScheduleEntry, 'time'>, value: ActuatorState) => {
     setActuatorSchedules(prevSchedules => {
-      if (!prevSchedules[dayIndex]) return prevSchedules;
+      if (!prevSchedules[dayIndex]) return prevSchedules; // Should not happen if initialized
       const newSchedules = [...prevSchedules];
-      const dayScheduleToEdit = [...(newSchedules[dayIndex] as FullActuatorSchedule)];
+      const dayScheduleToEdit = [...(newSchedules[dayIndex] as FullActuatorSchedule)]; // Ensure deep copy
       dayScheduleToEdit[rowIndex] = { ...dayScheduleToEdit[rowIndex], [actuatorKey]: value };
       newSchedules[dayIndex] = dayScheduleToEdit;
       return newSchedules;
@@ -165,10 +182,10 @@ export default function ScheduleGeneratorPage() {
     setIsSaving(true);
     try {
       const scheduleToSave = actuatorSchedules[activeUiDayIndex];
-      // Path for saving is /schedules/{uid}/day-{dayNumber} (1-indexed)
       const dayNumber = activeUiDayIndex + 1;
+      // Saves to Firebase Realtime Database
       await database.set(database.ref(`schedules/${currentUser.uid}/day-${dayNumber}`), scheduleToSave);
-      toast({ title: `Schedule for Day ${dayNumber} Saved!`, description: `Actuator schedule for Day ${dayNumber} has been saved successfully.` });
+      toast({ title: `Schedule for Day ${dayNumber} Saved!`, description: `Actuator schedule for Day ${dayNumber} has been saved to the database.` });
     } catch (error: any) {
       console.error("Error saving schedule:", error);
       toast({ variant: "destructive", title: "Save Failed", description: error.message || `Could not save the schedule for Day ${activeUiDayIndex + 1}.` });
@@ -177,7 +194,38 @@ export default function ScheduleGeneratorPage() {
     }
   };
 
-  const currentScheduleForTable = actuatorSchedules[activeUiDayIndex];
+  const handleDownloadCsv = () => {
+    if (!currentUser || !actuatorSchedules[activeUiDayIndex]) {
+      toast({ variant: "destructive", title: "Cannot Download", description: `No schedule data for Day ${activeUiDayIndex + 1} or user not logged in.` });
+      return;
+    }
+
+    const schedule = actuatorSchedules[activeUiDayIndex] as FullActuatorSchedule;
+    if (!schedule || schedule.length === 0) {
+      toast({ variant: "destructive", title: "Empty Schedule", description: `Schedule for Day ${activeUiDayIndex + 1} is empty.` });
+      return;
+    }
+
+    const headers = "Time,Fan,Pump,Lid,Bulb";
+    const csvRows = schedule.map(entry =>
+      [entry.time, entry.fan, entry.pump, entry.lid, entry.bulb].join(',')
+    );
+    const csvString = `${headers}\n${csvRows.join("\n")}`;
+
+    const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
+    link.setAttribute("download", `green_guardian_schedule_day_${activeUiDayIndex + 1}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    
+    toast({ title: `CSV Downloaded`, description: `Schedule for Day ${activeUiDayIndex + 1} has been downloaded.` });
+  };
+
 
   return (
     <div className="space-y-8">
@@ -188,6 +236,7 @@ export default function ScheduleGeneratorPage() {
           </CardTitle>
           <CardDescription>
             Generate a 24-hour actuator control plan for {FIXED_CROP_TYPE}, adaptable for multiple days, based on sensor trends and weather forecasts.
+            Sensor data is currently mocked for demonstration. Weather forecast is also mocked.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -205,7 +254,7 @@ export default function ScheduleGeneratorPage() {
                   value={scheduleDurationDays}
                   onChange={(e) => setScheduleDurationDays(Math.max(1, parseInt(e.target.value, 10) || 1))}
                   min="1"
-                  max="7" // Example max, adjust as needed
+                  max="7" 
                   className="bg-input/30"
                   required
                 />
@@ -213,7 +262,7 @@ export default function ScheduleGeneratorPage() {
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="weatherForecast">7-Day Weather Forecast Summary (Context for AI)</Label>
+              <Label htmlFor="weatherForecast">7-Day Weather Forecast Summary (Context for AI - Currently Mocked)</Label>
               <Textarea
                 id="weatherForecast"
                 value={weatherForecastSummary}
@@ -225,6 +274,7 @@ export default function ScheduleGeneratorPage() {
               />
               <p className="text-xs text-muted-foreground">
                 Provide a summary including temperature, humidity, and rain expectations for the next 7 days. AI will use this to generate Day 1's schedule.
+                In a production app, this would be fetched from a weather API.
               </p>
             </div>
 
@@ -295,7 +345,7 @@ export default function ScheduleGeneratorPage() {
                       </Table>
                     </ScrollArea>
                   ) : (
-                    <div className="mt-4 p-4 text-center text-muted-foreground">Schedule for Day {i + 1} has not been generated or is empty.</div>
+                    <div className="mt-4 p-4 text-center text-muted-foreground">Schedule for Day {i + 1} has not been generated or is empty. Review generation form.</div>
                   )}
                 </TabsContent>
               ))}
@@ -303,28 +353,40 @@ export default function ScheduleGeneratorPage() {
           </CardContent>
           <CardFooter className="flex-col items-start space-y-4 sm:flex-row sm:items-center sm:justify-between sm:space-y-0 mt-4">
             <p className="text-xs text-muted-foreground">
-              Note: AI generates Day 1. Other days are copies. Adjust based on real-world observations.
+              Note: AI generates Day 1. Other days are initially copies. Adjust based on real-world observations and specific daily forecasts.
             </p>
-            <Button 
-              onClick={handleSaveSchedule} 
-              disabled={isSaving || !currentUser || !actuatorSchedules[activeUiDayIndex]} 
-              className="w-full sm:w-auto"
-            >
-              {isSaving ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Saving Day {activeUiDayIndex + 1}...
-                </>
-              ) : (
-                <>
-                  <Save className="mr-2 h-4 w-4" />
-                  Save Schedule for Day {activeUiDayIndex + 1}
-                </>
-              )}
-            </Button>
+            <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+              <Button 
+                onClick={handleDownloadCsv} 
+                disabled={!currentUser || !actuatorSchedules[activeUiDayIndex]} 
+                variant="outline"
+                className="w-full sm:w-auto"
+              >
+                <Download className="mr-2 h-4 w-4" />
+                Download CSV (Day {activeUiDayIndex + 1})
+              </Button>
+              <Button 
+                onClick={handleSaveSchedule} 
+                disabled={isSaving || !currentUser || !actuatorSchedules[activeUiDayIndex]} 
+                className="w-full sm:w-auto"
+              >
+                {isSaving ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Saving Day {activeUiDayIndex + 1}...
+                  </>
+                ) : (
+                  <>
+                    <Save className="mr-2 h-4 w-4" />
+                    Save to DB (Day {activeUiDayIndex + 1})
+                  </>
+                )}
+              </Button>
+            </div>
           </CardFooter>
         </Card>
       )}
     </div>
   );
 }
+
