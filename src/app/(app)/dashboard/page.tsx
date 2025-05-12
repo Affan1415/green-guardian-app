@@ -11,7 +11,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
 
 export default function DashboardPage() {
-  const { isAdmin } = useAuth();
+  const { isAdmin } = useAuth(); // isAdmin might still be useful for other UI elements, but not for toggling
   const { toast } = useToast();
 
   const [sensorData, setSensorData] = useState<SensorData | null>(null);
@@ -45,11 +45,11 @@ export default function DashboardPage() {
   }, []);
 
   const handleToggleActuator = async (actuatorName: ActuatorName) => {
-    if (!isAdmin || !actuatorData) {
+    if (!actuatorData) {
       toast({
         variant: "destructive",
-        title: "Permission Denied",
-        description: "Only admins can control actuators.",
+        title: "Error",
+        description: "Actuator data not available.",
       });
       return;
     }
@@ -117,7 +117,8 @@ export default function DashboardPage() {
               status={card.status}
               icon={card.icon}
               onToggle={() => handleToggleActuator(card.actuatorName)}
-              isAdmin={isAdmin}
+              // isAdmin prop is still passed but its usage within ActuatorCard is changed
+              isAdmin={isAdmin} 
               isLoading={loadingActuators}
             />
           ))}
@@ -126,3 +127,4 @@ export default function DashboardPage() {
     </div>
   );
 }
+

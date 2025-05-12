@@ -12,7 +12,7 @@ interface ActuatorCardProps {
   status: 'on' | 'off' | null | undefined;
   icon: ReactNode;
   onToggle: () => void;
-  isAdmin: boolean;
+  isAdmin: boolean; // Prop kept for potential future use or other conditional UI, but not for disabling toggle
   isLoading?: boolean;
 }
 
@@ -50,17 +50,16 @@ export default function ActuatorCard({ title, status, icon, onToggle, isAdmin, i
         ) : (
           <Button 
             onClick={onToggle} 
-            disabled={!isAdmin || status === null || status === undefined} 
+            disabled={status === null || status === undefined} // Only disable if status is unknown
             className="w-full"
             variant={status === 'on' ? 'destructive' : 'default'}
           >
             {status === 'on' ? 'Turn OFF' : 'Turn ON'}
           </Button>
         )}
-        {!isAdmin && status !== null && status !== undefined && (
-          <p className="text-xs text-muted-foreground mt-2 w-full text-center">Admin control only</p>
-        )}
+        {/* The admin-only message is removed */}
       </CardFooter>
     </Card>
   );
 }
+
