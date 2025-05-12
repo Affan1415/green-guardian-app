@@ -16,8 +16,13 @@ const nextConfig: NextConfig = {
         port: '',
         pathname: '/**',
       },
+      // Add other image hostnames if needed
     ],
   },
+  experimental: {
+    // serverActions: true, // Uncomment if Genkit or other features require it.
+                         // Keeping it commented as Genkit is mostly client-side calls here.
+  }
 };
 
 export default nextConfig;
