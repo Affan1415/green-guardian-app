@@ -1,3 +1,4 @@
+
 import type {NextConfig} from 'next';
 
 const nextConfig: NextConfig = {
@@ -20,8 +21,7 @@ const nextConfig: NextConfig = {
     ],
   },
   experimental: {
-    // serverActions: true, // Uncomment if Genkit or other features require it.
-                         // Keeping it commented as Genkit is mostly client-side calls here.
+    serverActions: true, 
   }
 };
 

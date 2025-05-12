@@ -1,215 +1,213 @@
 
-// This is a mock Firebase setup. In a real application, you would initialize Firebase App here.
-// For demonstration purposes, we'll simulate Firebase behavior.
-
+import { initializeApp, getApps, type FirebaseApp } from "firebase/app";
+// import { getAnalytics } from "firebase/analytics"; // Uncomment if needed
+import {
+  getAuth,
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signOut as firebaseSignOut,
+  type User as FirebaseUser,
+  updateProfile,
+} from "firebase/auth";
+import {
+  getDatabase,
+  ref,
+  onValue,
+  set,
+  get,
+  child,
+  type DatabaseReference,
+  type DataSnapshot,
+} from "firebase/database";
 import type { UserProfile, FirebaseRootData, FullActuatorSchedule } from '@/types';
 
-// Mock User Database
-const mockUsers: Record<string, Omit<UserProfile, 'uid'>> = {
-  'admin@agricontrol.com': { email: 'admin@agricontrol.com', role: 'admin', displayName: 'Admin User' },
-  'user@agricontrol.com': { email: 'user@agricontrol.com', role: 'user', displayName: 'Regular User' },
+const firebaseConfig = {
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  databaseURL: process.env.NEXT_PUBLIC_FIREBASE_DATABASE_URL,
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID
 };
 
-const mockUserPasswords: Record<string, string> = {
-  'admin@agricontrol.com': 'admin123',
-  'user@agricontrol.com': 'user123',
-}
+let app: FirebaseApp;
+let authInstance: ReturnType<typeof getAuth>;
+let dbInstance: ReturnType<typeof getDatabase>;
 
-// Mock Realtime Database with flat structure
-let mockDatabase: FirebaseRootData & {
-  users: Record<string, Omit<UserProfile, 'uid' | 'email'>>;
-  schedules?: Record<string, Record<string, FullActuatorSchedule>>; // For schedule generator
-} = {
-  V1: 25.0, // Temperature
-  V2: 60,   // Humidity
-  V3: 50,   // Soil Moisture
-  V4: 1000, // Light Intensity
-  B2: "0",  // Bulb (0: OFF, 1: ON)
-  B3: "0",  // Pump
-  B4: "0",  // Fan
-  B5: "0",  // Lid
-  Mode: "0", // System Mode (0: Manual, 1: AI)
-  users: { 
-    'admin-uid': { role: 'admin', displayName: 'Admin User'},
-    'user-uid': { role: 'user', displayName: 'Regular User'},
+if (typeof window !== 'undefined') {
+  if (!getApps().length) {
+    app = initializeApp(firebaseConfig);
+  } else {
+    app = getApps()[0];
   }
-};
-
-// Simulate real-time updates for sensors (V keys)
-if (typeof window !== 'undefined') { 
-  setInterval(() => {
-    mockDatabase.V1 = parseFloat((20 + Math.random() * 10).toFixed(1));
-    mockDatabase.V2 = Math.floor(50 + Math.random() * 30);
-    mockDatabase.V3 = Math.floor(40 + Math.random() * 40);
-    mockDatabase.V4 = Math.floor(500 + Math.random() * 1000);
-    
-    // Notify root listeners
-    if (rootListeners['/']) {
-      rootListeners['/']({ val: () => ({ ...mockDatabase }) }); // Send a copy
-    }
-  }, 5000); 
+  authInstance = getAuth(app);
+  dbInstance = getDatabase(app);
+  // analytics = getAnalytics(app); // Uncomment if needed
 }
-
-
-// --- Mock Firebase Auth ---
-let currentUser: UserProfile | null = null;
-const authListeners: Array<(user: UserProfile | null) => void> = [];
 
 export const auth = {
   onAuthStateChanged: (callback: (user: UserProfile | null) => void) => {
-    authListeners.push(callback);
-    Promise.resolve().then(() => callback(currentUser)); 
-    return () => { 
-      const index = authListeners.indexOf(callback);
-      if (index > -1) authListeners.splice(index, 1);
-    };
-  },
-  signInWithEmailAndPassword: async (email: string, password?: string): Promise<{ user: UserProfile }> => {
-    return new Promise((resolve, reject) => {
-      setTimeout(() => {
-        const userDetails = mockUsers[email];
-        if (userDetails && password && mockUserPasswords[email] === password) {
-          const uid = email === 'admin@agricontrol.com' ? 'admin-uid' : 'user-uid';
-          currentUser = { ...userDetails, uid };
-          if (!mockDatabase.users[uid]) {
-             mockDatabase.users[uid] = { role: userDetails.role, displayName: userDetails.displayName || email };
+    if (!authInstance) {
+      // This case should ideally not happen in client-side usage after initialization
+      console.warn("Auth instance not available for onAuthStateChanged");
+      callback(null);
+      return () => {}; // Return an empty unsubscribe function
+    }
+    return onAuthStateChanged(authInstance, async (firebaseUser: FirebaseUser | null) => {
+      if (firebaseUser) {
+        try {
+          const userDbRef = ref(dbInstance, `users/${firebaseUser.uid}`);
+          const userSnapshot = await get(userDbRef);
+          
+          let role: 'admin' | 'user' = 'user';
+          let displayName = firebaseUser.displayName || firebaseUser.email;
+
+          if (userSnapshot.exists()) {
+            const userData = userSnapshot.val();
+            role = userData.role || 'user';
+            displayName = userData.displayName || displayName;
+          } else {
+            // If user record doesn't exist in DB (e.g., first login after manual creation in Auth console)
+            // Create a basic record.
+            await set(userDbRef, {
+              email: firebaseUser.email,
+              displayName: displayName,
+              role: 'user'
+            });
           }
-          authListeners.forEach(cb => cb(currentUser));
-          resolve({ user: currentUser });
-        } else {
-          reject(new Error('Invalid credentials or user not found.'));
+
+          const userProfile: UserProfile = {
+            uid: firebaseUser.uid,
+            email: firebaseUser.email,
+            displayName: displayName,
+            role: role,
+          };
+          callback(userProfile);
+        } catch (error) {
+          console.error("Error fetching user details from DB:", error);
+          // Fallback to basic user profile if DB fetch fails
+          const userProfile: UserProfile = {
+            uid: firebaseUser.uid,
+            email: firebaseUser.email,
+            displayName: firebaseUser.displayName || firebaseUser.email,
+            role: 'user', // Default role on error
+          };
+          callback(userProfile);
         }
-      }, 500);
+      } else {
+        callback(null);
+      }
     });
   },
+
+  signInWithEmailAndPassword: async (email: string, password?: string): Promise<{ user: UserProfile }> => {
+    if (!authInstance || !dbInstance) throw new Error("Firebase not initialized");
+    if (!password) throw new Error("Password is required.");
+    
+    const userCredential = await signInWithEmailAndPassword(authInstance, email, password);
+    const firebaseUser = userCredential.user;
+
+    // Fetch role and display name from DB as onAuthStateChanged would
+    const userDbRef = ref(dbInstance, `users/${firebaseUser.uid}`);
+    const userSnapshot = await get(userDbRef);
+    let role: 'admin' | 'user' = 'user';
+    let displayName = firebaseUser.displayName || firebaseUser.email;
+
+    if (userSnapshot.exists()) {
+      const userData = userSnapshot.val();
+      role = userData.role || 'user';
+      displayName = userData.displayName || displayName;
+    }
+    // No need to create profile here, onAuthStateChanged handles it or it already exists
+
+    const profile: UserProfile = {
+      uid: firebaseUser.uid,
+      email: firebaseUser.email,
+      displayName: displayName,
+      role: role,
+    };
+    return { user: profile };
+  },
+
   createUserWithEmailAndPassword: async (email: string, password?: string): Promise<{ user: UserProfile }> => {
-     return new Promise((resolve, reject) => {
-      setTimeout(() => {
-        if (mockUsers[email]) {
-          reject(new Error('Email already in use.'));
-          return;
-        }
-        const uid = `new-user-${Date.now()}-uid`;
-        const newUserDetails = { email, role: 'user' as const, displayName: email };
-        mockUsers[email] = newUserDetails;
-        if (password) mockUserPasswords[email] = password;
-        
-        currentUser = { ...newUserDetails, uid };
-        mockDatabase.users[uid] = { role: 'user', displayName: email };
-        authListeners.forEach(cb => cb(currentUser));
-        resolve({ user: currentUser });
-      }, 500);
-    });
+    if (!authInstance || !dbInstance) throw new Error("Firebase not initialized");
+    if (!password) throw new Error("Password is required for signup.");
+    
+    const userCredential = await createUserWithEmailAndPassword(authInstance, email, password);
+    const firebaseUser = userCredential.user;
+    
+    // Set initial displayName in Firebase Auth if not already set (usually isn't on creation)
+    if (!firebaseUser.displayName) {
+        await updateProfile(firebaseUser, { displayName: email.split('@')[0] });
+    }
+
+    const userProfileData = {
+      email: firebaseUser.email,
+      displayName: email.split('@')[0], // Use part of email as default displayName
+      role: 'user' as const // Default role for new signups
+    };
+    await set(ref(dbInstance, `users/${firebaseUser.uid}`), userProfileData);
+    
+    const profile: UserProfile = {
+        uid: firebaseUser.uid,
+        email: firebaseUser.email,
+        displayName: userProfileData.displayName,
+        role: userProfileData.role,
+    };
+    return { user: profile };
   },
+
   signOut: async (): Promise<void> => {
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        currentUser = null;
-        authListeners.forEach(cb => cb(null));
-        resolve();
-      }, 200);
-    });
+    if (!authInstance) throw new Error("Firebase not initialized");
+    await firebaseSignOut(authInstance);
   },
-  getCurrentUser: (): UserProfile | null => currentUser,
+
+  getCurrentUser: (): FirebaseUser | null => {
+    if (!authInstance) return null;
+    return authInstance.currentUser;
+  },
 };
 
-// --- Mock Firebase Realtime Database ---
-const rootListeners: Record<string, (snapshot: { val: () => any }) => void> = {};
-const userRoleListeners: Record<string, (data: {role: 'admin' | 'user'} | null) => void> = {}; // For user roles
-
 export const database = {
-  ref: (path: string) => ({ path }), 
-  onValue: (
-    dbRef: { path: string }, 
-    callback: (snapshot: { val: () => any }) => void
-  ) => {
-    const path = dbRef.path;
-    setTimeout(() => { 
-      if (path === '/') { // Listener for the root
-        rootListeners[path] = callback;
-        callback({ val: () => ({ ...mockDatabase }) }); // Send a copy
-      } else if (path.startsWith('users/') && path.endsWith('/role')) {
-        const uid = path.split('/')[1];
-        userRoleListeners[uid] = callback as any;
-        callback({ val: () => mockDatabase.users[uid] ? {role: mockDatabase.users[uid].role} : null });
-      } else if (path.startsWith('users/')) {
-        const uid = path.split('/')[1];
-        callback({ val: () => mockDatabase.users[uid] || null });
-      } else {
-        // For any other specific path, try to resolve it from mockDatabase
-        const pathParts = path.split('/').filter(p => p);
-        let data = mockDatabase as any;
-        for (const part of pathParts) {
-            if (data && typeof data === 'object' && data.hasOwnProperty(part)) {
-                data = data[part];
-            } else {
-                data = null;
-                break;
-            }
-        }
-        callback({ val: () => data });
-      }
-    }, 100);
-
-    return () => { 
-      if (path === '/') delete rootListeners[path];
-      if (path.startsWith('users/') && path.endsWith('/role')) {
-        const uid = path.split('/')[1];
-        delete userRoleListeners[uid];
-      }
-    };
+  ref: (path: string): DatabaseReference => {
+    if (!dbInstance) throw new Error("Firebase Database not initialized");
+    return ref(dbInstance, path);
   },
-  set: async (dbRef: { path: string }, value: any): Promise<void> => {
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        const pathKey = dbRef.path.startsWith('/') ? dbRef.path.substring(1) : dbRef.path;
-        
-        // Update root level keys directly
-        if (mockDatabase.hasOwnProperty(pathKey)) {
-          (mockDatabase as any)[pathKey] = value;
-           // Notify root listeners if a root key changed
-           if (rootListeners['/'] && (pathKey === 'Mode' || pathKey.startsWith('B'))) {
-             rootListeners['/']({ val: () => ({ ...mockDatabase }) }); // Send a copy
-           }
-        } else if (pathKey.startsWith('users/')) {
-          const parts = pathKey.split('/');
-          if (parts.length === 3 && mockDatabase.users[parts[1]]) { // users/uid/role or users/uid/displayName
-            (mockDatabase.users[parts[1]] as any)[parts[2]] = value;
-            if (parts[2] === 'role' && userRoleListeners[parts[1]]) {
-                userRoleListeners[parts[1]]({role: value});
-            }
-          } else if (parts.length === 2) { 
-            mockDatabase.users[parts[1]] = {...(mockDatabase.users[parts[1]] || {}), ...value};
-          }
-        } else if (pathKey.startsWith('schedules/')) {
-            const parts = pathKey.split('/'); // schedules/{uid}/today
-            if (parts.length === 3) {
-                const [, uid, day] = parts;
-                if (!mockDatabase.schedules) mockDatabase.schedules = {};
-                if (!mockDatabase.schedules[uid]) mockDatabase.schedules[uid] = {};
-                mockDatabase.schedules[uid][day] = value;
-            }
-        }
-        resolve();
-      }, 100);
-    });
+  onValue: (
+    dbRef: DatabaseReference, 
+    callback: (snapshot: DataSnapshot) => void,
+    errorCallback?: (error: Error) => void
+  ) => {
+    if (!dbInstance) throw new Error("Firebase Database not initialized");
+    return onValue(dbRef, callback, errorCallback);
+  },
+  set: async (dbRef: DatabaseReference, value: any): Promise<void> => {
+    if (!dbInstance) throw new Error("Firebase Database not initialized");
+    await set(dbRef, value);
   },
   getUserRole: async (uid: string): Promise<'admin' | 'user' | null> => {
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve(mockDatabase.users[uid]?.role || null);
-      }, 50);
-    });
+    if (!dbInstance) throw new Error("Firebase Database not initialized");
+    try {
+      const roleSnapshot = await get(child(ref(dbInstance, 'users'), `${uid}/role`));
+      if (roleSnapshot.exists()) {
+        return roleSnapshot.val();
+      }
+      return null;
+    } catch (error) {
+      console.error("Error fetching user role from DB:", error);
+      return null;
+    }
   }
 };
 
-export const app = {
-  name: '[mock]',
-  options: {},
-  automaticDataCollectionEnabled: false,
-};
+// This is the initialized Firebase app instance, if needed elsewhere.
+export { app as firebaseApp };
 
-// Updated to return Partial<FirebaseRootData> with new keys
+
+// Mock function for sensor history, kept as is from original, doesn't use real Firebase for this.
 export const getSensorHistory = async (days: number): Promise<Partial<FirebaseRootData>[]> => {
   return new Promise((resolve) => {
     setTimeout(() => {

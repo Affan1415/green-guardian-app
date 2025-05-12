@@ -2,7 +2,7 @@
 "use client";
 import type { ReactNode } from 'react';
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { auth, database } from '@/config/firebase'; // Using mocked Firebase
+import { auth } from '@/config/firebase'; // Using REAL Firebase
 import type { UserProfile } from '@/types';
 import { useRouter, usePathname } from 'next/navigation';
 
@@ -25,14 +25,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const pathname = usePathname();
 
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged(async (user) => {
-      if (user) {
-        // In a real app, fetch role from Firestore/RTDB after auth.
-        // For mock, role is part of UserProfile from mockUsers
-        const userRole = await database.getUserRole(user.uid);
-        const profile: UserProfile = { ...user, role: userRole || 'user' };
-        setCurrentUser(profile);
-        setIsAdmin(profile.role === 'admin');
+    // auth.onAuthStateChanged now directly provides UserProfile | null
+    const unsubscribe = auth.onAuthStateChanged((userProfile) => {
+      if (userProfile) {
+        setCurrentUser(userProfile);
+        setIsAdmin(userProfile.role === 'admin');
       } else {
         setCurrentUser(null);
         setIsAdmin(false);
@@ -52,10 +49,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const login = async (email: string, password?: string) => {
     setLoading(true);
     try {
-      const { user: firebaseUser } = await auth.signInWithEmailAndPassword(email, password);
-       // Role is set via onAuthStateChanged effect
+      // auth.signInWithEmailAndPassword from firebase.ts now returns { user: UserProfile }
+      const { user } = await auth.signInWithEmailAndPassword(email, password);
+      // State updates (currentUser, isAdmin) will be handled by the onAuthStateChanged listener
       setLoading(false);
-      return firebaseUser;
+      return user; // Return the UserProfile
     } catch (error) {
       setLoading(false);
       throw error;
@@ -65,10 +63,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const signup = async (email: string, password?: string) => {
     setLoading(true);
     try {
-      const { user: firebaseUser } = await auth.createUserWithEmailAndPassword(email, password);
-      // New users are 'user' by default, role set via onAuthStateChanged effect
+      // auth.createUserWithEmailAndPassword from firebase.ts now returns { user: UserProfile }
+      const { user } = await auth.createUserWithEmailAndPassword(email, password);
+      // State updates handled by onAuthStateChanged
       setLoading(false);
-      return firebaseUser;
+      return user; // Return the UserProfile
     } catch (error) {
       setLoading(false);
       throw error;
@@ -78,8 +77,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const logout = async () => {
     setLoading(true);
     await auth.signOut();
-    setCurrentUser(null);
-    setIsAdmin(false);
+    // State updates (currentUser, isAdmin to null/false) handled by onAuthStateChanged
     setLoading(false);
     router.push('/login');
   };
