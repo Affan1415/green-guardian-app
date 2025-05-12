@@ -1,7 +1,8 @@
+
 // This is a mock Firebase setup. In a real application, you would initialize Firebase App here.
 // For demonstration purposes, we'll simulate Firebase behavior.
 
-import type { UserProfile, SensorData, ActuatorData, ActuatorName } from '@/types';
+import type { UserProfile, FirebaseRootData, FullActuatorSchedule } from '@/types';
 
 // Mock User Database
 const mockUsers: Record<string, Omit<UserProfile, 'uid'>> = {
@@ -14,41 +15,39 @@ const mockUserPasswords: Record<string, string> = {
   'user@agricontrol.com': 'user123',
 }
 
-// Mock Realtime Database
-let mockDatabase: {
-  sensors: SensorData;
-  actuators: ActuatorData;
-  users: Record<string, Omit<UserProfile, 'uid' | 'email'>>; // Store role by uid
+// Mock Realtime Database with flat structure
+let mockDatabase: FirebaseRootData & {
+  users: Record<string, Omit<UserProfile, 'uid' | 'email'>>;
+  schedules?: Record<string, Record<string, FullActuatorSchedule>>; // For schedule generator
 } = {
-  sensors: {
-    temperature: 25,
-    humidity: 60,
-    soilMoisture: 50,
-    light: 1000,
-  },
-  actuators: {
-    fan: 'off',
-    waterPump: 'off',
-    lidMotor: 'off',
-    bulb: 'off',
-  },
-  users: { // uid: role
+  V1: 25.0, // Temperature
+  V2: 60,   // Humidity
+  V3: 50,   // Soil Moisture
+  V4: 1000, // Light Intensity
+  B2: "0",  // Bulb (0: OFF, 1: ON)
+  B3: "0",  // Pump
+  B4: "0",  // Fan
+  B5: "0",  // Lid
+  Mode: "0", // System Mode (0: Manual, 1: AI)
+  users: { 
     'admin-uid': { role: 'admin', displayName: 'Admin User'},
     'user-uid': { role: 'user', displayName: 'Regular User'},
   }
 };
 
-// Simulate real-time updates for sensors
-if (typeof window !== 'undefined') { // Ensure this only runs in the browser
+// Simulate real-time updates for sensors (V keys)
+if (typeof window !== 'undefined') { 
   setInterval(() => {
-    mockDatabase.sensors.temperature = parseFloat((20 + Math.random() * 10).toFixed(1));
-    mockDatabase.sensors.humidity = Math.floor(50 + Math.random() * 30);
-    mockDatabase.sensors.soilMoisture = Math.floor(40 + Math.random() * 40);
-    mockDatabase.sensors.light = Math.floor(500 + Math.random() * 1000);
+    mockDatabase.V1 = parseFloat((20 + Math.random() * 10).toFixed(1));
+    mockDatabase.V2 = Math.floor(50 + Math.random() * 30);
+    mockDatabase.V3 = Math.floor(40 + Math.random() * 40);
+    mockDatabase.V4 = Math.floor(500 + Math.random() * 1000);
     
-    // Notify listeners - in a real app, Firebase SDK handles this
-    Object.values(sensorListeners).forEach(cb => cb(mockDatabase.sensors));
-  }, 5000); // Update every 5 seconds
+    // Notify root listeners
+    if (rootListeners['/']) {
+      rootListeners['/']({ val: () => ({ ...mockDatabase }) }); // Send a copy
+    }
+  }, 5000); 
 }
 
 
@@ -59,9 +58,8 @@ const authListeners: Array<(user: UserProfile | null) => void> = [];
 export const auth = {
   onAuthStateChanged: (callback: (user: UserProfile | null) => void) => {
     authListeners.push(callback);
-    // Simulate initial state
     Promise.resolve().then(() => callback(currentUser)); 
-    return () => { // Unsubscribe function
+    return () => { 
       const index = authListeners.indexOf(callback);
       if (index > -1) authListeners.splice(index, 1);
     };
@@ -71,7 +69,7 @@ export const auth = {
       setTimeout(() => {
         const userDetails = mockUsers[email];
         if (userDetails && password && mockUserPasswords[email] === password) {
-          const uid = email === 'admin@agricontrol.com' ? 'admin-uid' : 'user-uid'; // Simple UID mapping
+          const uid = email === 'admin@agricontrol.com' ? 'admin-uid' : 'user-uid';
           currentUser = { ...userDetails, uid };
           if (!mockDatabase.users[uid]) {
              mockDatabase.users[uid] = { role: userDetails.role, displayName: userDetails.displayName || email };
@@ -116,26 +114,20 @@ export const auth = {
 };
 
 // --- Mock Firebase Realtime Database ---
-const sensorListeners: Record<string, (data: SensorData) => void> = {};
-const actuatorListeners: Record<string, (data: ActuatorData) => void> = {};
-const userRoleListeners: Record<string, (data: {role: 'admin' | 'user'} | null) => void> = {};
-
+const rootListeners: Record<string, (snapshot: { val: () => any }) => void> = {};
+const userRoleListeners: Record<string, (data: {role: 'admin' | 'user'} | null) => void> = {}; // For user roles
 
 export const database = {
-  ref: (path: string) => ({ path }), // Simplified ref
+  ref: (path: string) => ({ path }), 
   onValue: (
     dbRef: { path: string }, 
     callback: (snapshot: { val: () => any }) => void
   ) => {
     const path = dbRef.path;
-    // Simulate initial data fetch and listen for changes
-    setTimeout(() => { // Simulate async fetch
-      if (path === 'sensors') {
-        sensorListeners[path] = callback as any; // Store for pseudo-realtime updates
-        callback({ val: () => mockDatabase.sensors });
-      } else if (path === 'actuators') {
-        actuatorListeners[path] = callback as any; // Store for pseudo-realtime updates
-        callback({ val: () => mockDatabase.actuators });
+    setTimeout(() => { 
+      if (path === '/') { // Listener for the root
+        rootListeners[path] = callback;
+        callback({ val: () => ({ ...mockDatabase }) }); // Send a copy
       } else if (path.startsWith('users/') && path.endsWith('/role')) {
         const uid = path.split('/')[1];
         userRoleListeners[uid] = callback as any;
@@ -143,12 +135,24 @@ export const database = {
       } else if (path.startsWith('users/')) {
         const uid = path.split('/')[1];
         callback({ val: () => mockDatabase.users[uid] || null });
+      } else {
+        // For any other specific path, try to resolve it from mockDatabase
+        const pathParts = path.split('/').filter(p => p);
+        let data = mockDatabase as any;
+        for (const part of pathParts) {
+            if (data && typeof data === 'object' && data.hasOwnProperty(part)) {
+                data = data[part];
+            } else {
+                data = null;
+                break;
+            }
+        }
+        callback({ val: () => data });
       }
     }, 100);
 
-    return () => { // Unsubscribe function
-      if (path === 'sensors') delete sensorListeners[path];
-      if (path === 'actuators') delete actuatorListeners[path];
+    return () => { 
+      if (path === '/') delete rootListeners[path];
       if (path.startsWith('users/') && path.endsWith('/role')) {
         const uid = path.split('/')[1];
         delete userRoleListeners[uid];
@@ -158,32 +162,38 @@ export const database = {
   set: async (dbRef: { path: string }, value: any): Promise<void> => {
     return new Promise((resolve) => {
       setTimeout(() => {
-        const path = dbRef.path;
-        if (path.startsWith('actuators/')) {
-          const actuatorKey = path.split('/')[1] as ActuatorName;
-          if (mockDatabase.actuators.hasOwnProperty(actuatorKey)) {
-            (mockDatabase.actuators[actuatorKey] as 'on' | 'off') = value;
-            // Notify actuator listeners
-            Object.values(actuatorListeners).forEach(cb => cb(mockDatabase.actuators));
-          }
-        } else if (path.startsWith('users/')) {
-          // Example: users/uid/role
-          const parts = path.split('/');
-          if (parts.length === 3 && mockDatabase.users[parts[1]]) {
+        const pathKey = dbRef.path.startsWith('/') ? dbRef.path.substring(1) : dbRef.path;
+        
+        // Update root level keys directly
+        if (mockDatabase.hasOwnProperty(pathKey)) {
+          (mockDatabase as any)[pathKey] = value;
+           // Notify root listeners if a root key changed
+           if (rootListeners['/'] && (pathKey === 'Mode' || pathKey.startsWith('B'))) {
+             rootListeners['/']({ val: () => ({ ...mockDatabase }) }); // Send a copy
+           }
+        } else if (pathKey.startsWith('users/')) {
+          const parts = pathKey.split('/');
+          if (parts.length === 3 && mockDatabase.users[parts[1]]) { // users/uid/role or users/uid/displayName
             (mockDatabase.users[parts[1]] as any)[parts[2]] = value;
-             // Notify specific user role listener
             if (parts[2] === 'role' && userRoleListeners[parts[1]]) {
                 userRoleListeners[parts[1]]({role: value});
             }
-          } else if (parts.length === 2) { // users/uid
-            mockDatabase.users[parts[1]] = {...mockDatabase.users[parts[1]], ...value};
+          } else if (parts.length === 2) { 
+            mockDatabase.users[parts[1]] = {...(mockDatabase.users[parts[1]] || {}), ...value};
           }
+        } else if (pathKey.startsWith('schedules/')) {
+            const parts = pathKey.split('/'); // schedules/{uid}/today
+            if (parts.length === 3) {
+                const [, uid, day] = parts;
+                if (!mockDatabase.schedules) mockDatabase.schedules = {};
+                if (!mockDatabase.schedules[uid]) mockDatabase.schedules[uid] = {};
+                mockDatabase.schedules[uid][day] = value;
+            }
         }
         resolve();
       }, 100);
     });
   },
-  // Mock for fetching user role specifically
   getUserRole: async (uid: string): Promise<'admin' | 'user' | null> => {
     return new Promise((resolve) => {
       setTimeout(() => {
@@ -193,24 +203,23 @@ export const database = {
   }
 };
 
-// Simulate app initialization (not really needed for mock)
 export const app = {
   name: '[mock]',
   options: {},
   automaticDataCollectionEnabled: false,
 };
 
-// Export a function to get sensor history (mocked)
-export const getSensorHistory = async (days: number): Promise<Partial<SensorData>[]> => {
+// Updated to return Partial<FirebaseRootData> with new keys
+export const getSensorHistory = async (days: number): Promise<Partial<FirebaseRootData>[]> => {
   return new Promise((resolve) => {
     setTimeout(() => {
-      const history: Partial<SensorData>[] = [];
+      const history: Partial<FirebaseRootData>[] = [];
       for (let i = 0; i < days; i++) {
         history.push({
-          temperature: parseFloat((20 + Math.random() * 15).toFixed(1)), // wider range for history
-          humidity: Math.floor(40 + Math.random() * 50),
-          soilMoisture: Math.floor(30 + Math.random() * 60),
-          light: Math.floor(300 + Math.random() * 1200),
+          V1: parseFloat((15 + Math.random() * 20).toFixed(1)), // Temperature
+          V2: Math.floor(30 + Math.random() * 60),          // Humidity
+          V3: Math.floor(20 + Math.random() * 70),          // SoilMoisture
+          V4: Math.floor(200 + Math.random() * 1300),         // Light
         });
       }
       resolve(history);

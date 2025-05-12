@@ -1,3 +1,4 @@
+
 "use client";
 import type { ChangeEvent, FormEvent } from 'react';
 import React, { useState, useEffect } from 'react';
@@ -6,8 +7,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { getSensorHistory, database } from '@/config/firebase'; // Using mocked Firebase
-import type { SensorData, ActuatorScheduleEntry, FullActuatorSchedule, ActuatorState } from '@/types';
+import { getSensorHistory, database } from '@/config/firebase'; 
+import type { FirebaseRootData, ActuatorScheduleEntry, FullActuatorSchedule, ActuatorState } from '@/types';
 import { Textarea } from '@/components/ui/textarea';
 import { Loader2, Save, CalendarClock } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
@@ -62,20 +63,28 @@ export default function ScheduleGeneratorPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [actuatorSchedule, setActuatorSchedule] = useState<FullActuatorSchedule | null>(null);
 
-  const preprocessSensorData = (history: Partial<SensorData>[]): Omit<GenerateActuatorScheduleInput, 'cropType' | 'weatherForecastSummary'> => {
+  // Updated to use FirebaseRootData keys (V1, V2, V3)
+  const preprocessSensorData = (history: Partial<FirebaseRootData>[]): Omit<GenerateActuatorScheduleInput, 'cropType' | 'weatherForecastSummary'> => {
     if (history.length === 0) {
-      return { averageSoilMoistureDrop: 10, averageTemperature: 25, averageHumidity: 60 }; // Defaults
+      // Provide sensible defaults if history is empty
+      return { averageSoilMoistureDrop: 10, averageTemperature: 25, averageHumidity: 60 };
     }
 
-    const avgTemp = history.reduce((sum, data) => sum + (data.temperature || 25), 0) / history.length;
-    const avgHumidity = history.reduce((sum, data) => sum + (data.humidity || 60), 0) / history.length;
+    const avgTemp = history.reduce((sum, data) => sum + (data.V1 || 25), 0) / history.length; // V1 for temperature
+    const avgHumidity = history.reduce((sum, data) => sum + (data.V2 || 60), 0) / history.length; // V2 for humidity
     
     let totalMoistureDrop = 0;
-    for (let i = 1; i < history.length; i++) {
-      const drop = (history[i-1].soilMoisture || 50) - (history[i].soilMoisture || 50);
-      totalMoistureDrop += Math.max(0, drop);
+    if (history.length > 1) {
+      for (let i = 1; i < history.length; i++) {
+        const prevMoisture = history[i-1].V3 || 50; // V3 for soilMoisture
+        const currentMoisture = history[i].V3 || 50; // V3 for soilMoisture
+        const drop = prevMoisture - currentMoisture;
+        totalMoistureDrop += Math.max(0, drop); // Consider only drops, not increases
+      }
     }
-    const avgDailyMoistureDrop = history.length > 1 ? totalMoistureDrop / (history.length -1) : 10;
+    // Average daily drop. If only one day of history, this might not be super accurate.
+    const avgDailyMoistureDrop = history.length > 1 ? totalMoistureDrop / (history.length - 1) : 10;
+
 
     return {
       averageSoilMoistureDrop: parseFloat(avgDailyMoistureDrop.toFixed(1)) || 10,
@@ -90,7 +99,8 @@ export default function ScheduleGeneratorPage() {
     setActuatorSchedule(null);
 
     try {
-      const sensorHistory = await getSensorHistory(7);
+      // getSensorHistory now returns Partial<FirebaseRootData>[]
+      const sensorHistory: Partial<FirebaseRootData>[] = await getSensorHistory(7);
       const processedSensorData = preprocessSensorData(sensorHistory);
       
       const input: GenerateActuatorScheduleInput = {
@@ -105,13 +115,12 @@ export default function ScheduleGeneratorPage() {
       const result: GenerateActuatorScheduleOutput = await generateActuatorSchedule(input);
       
       if (result.schedule && result.schedule.length > 0) {
-        // Ensure schedule has 96 entries for a full day
         if (result.schedule.length === 96) {
             setActuatorSchedule(result.schedule);
             toast({ title: "Actuator Schedule Generated Successfully!", variant: "default" });
         } else {
             console.warn(`AI returned ${result.schedule.length} entries, expected 96. Using fallback.`);
-            setActuatorSchedule(FALLBACK_SCHEDULE); // Or a padded version of result.schedule
+            setActuatorSchedule(FALLBACK_SCHEDULE); 
             toast({ title: "Partial Schedule Generated", description: "AI returned an incomplete schedule. Displaying fallback. You may need to adjust it.", variant: "default" });
         }
       } else {
@@ -143,6 +152,7 @@ export default function ScheduleGeneratorPage() {
     }
     setIsSaving(true);
     try {
+      // Path for saving is /schedules/{uid}/today
       await database.set(database.ref(`schedules/${currentUser.uid}/today`), actuatorSchedule);
       toast({ title: "Schedule Saved!", description: "Today's actuator schedule has been saved successfully." });
     } catch (error: any) {
