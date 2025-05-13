@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { getSensorHistory, database } from '@/config/firebase'; 
-import type { FirebaseRootData, ActuatorScheduleEntry, FullActuatorSchedule, ActuatorState } from '@/types';
+import type { HistoricalDataPoint, ActuatorScheduleEntry, FullActuatorSchedule, ActuatorState } from '@/types';
 import { Textarea } from '@/components/ui/textarea';
 import { Loader2, Save, CalendarClock, Edit3, Download, CloudSun } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
@@ -132,7 +132,7 @@ export default function ScheduleGeneratorPage() {
   }, [scheduleDurationDays]);
 
 
-  const preprocessSensorData = (history: Partial<FirebaseRootData>[]): Omit<GenerateActuatorScheduleInput, 'cropType' | 'weatherForecastSummary'> => {
+  const preprocessSensorData = (history: HistoricalDataPoint[]): Omit<GenerateActuatorScheduleInput, 'cropType' | 'weatherForecastSummary'> => {
     if (history.length === 0) {
       toast({
         title: "No Sensor History",
@@ -153,12 +153,15 @@ export default function ScheduleGeneratorPage() {
         const currentMoisture = history[i].V3;
         if (typeof prevMoisture === 'number' && typeof currentMoisture === 'number') {
           const drop = prevMoisture - currentMoisture;
-          totalMoistureDrop += Math.max(0, drop);
+          totalMoistureDrop += Math.max(0, drop); // Consider only drops, not increases
           validMoistureReadings++;
         }
       }
     }
+    // Calculate average daily drop based on the number of valid drop calculations (days -1 or intervals with data)
+    // This is a simplification. A more robust way would be to calculate daily averages first.
     const avgDailyMoistureDrop = validMoistureReadings > 0 ? totalMoistureDrop / validMoistureReadings : 10;
+
 
     return {
       averageSoilMoistureDrop: parseFloat(avgDailyMoistureDrop.toFixed(1)) || 10,
@@ -205,7 +208,7 @@ export default function ScheduleGeneratorPage() {
     }
 
     try {
-      const sensorHistory: Partial<FirebaseRootData>[] = await getSensorHistory(7); 
+      const sensorHistory: HistoricalDataPoint[] = await getSensorHistory(7); 
       const processedSensorData = preprocessSensorData(sensorHistory);
       
       const input: GenerateActuatorScheduleInput = {
@@ -469,3 +472,4 @@ export default function ScheduleGeneratorPage() {
     </div>
   );
 }
+

@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { getSensorHistory } from '@/config/firebase';
-import type { FirebaseRootData, HistoricalDataPoint } from '@/types';
+import type { HistoricalDataPoint } from '@/types';
 import { Textarea } from '@/components/ui/textarea';
 import { Loader2, Bug, ShieldAlert, Leaf, Info, Thermometer, Droplets, CircleHelpIcon, BookOpenCheck } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -38,9 +38,16 @@ async function fetchAndFormatWeather(apiKey: string, location: string, days: num
   try {
     const response = await fetch(url);
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
+      const errorData = await response.json().catch(() => ({message: response.statusText}));
       console.error(`WeatherAPI request failed with status ${response.status}`, errorData);
-      return `Error: WeatherAPI request failed. ${errorData?.error?.message || response.statusText}. Using mock data instead.`;
+      let errorMessage = `Error: WeatherAPI request failed. ${errorData?.error?.message || response.statusText}.`;
+      if (response.status === 401 || response.status === 403) {
+        errorMessage += " This could be due to an invalid or expired API key, or insufficient permissions."
+      } else if (response.status === 400) {
+         errorMessage += " This might be due to an invalid location or malformed request."
+      }
+      errorMessage += " Using mock data instead.";
+      return errorMessage;
     }
     const data = await response.json();
     
@@ -57,13 +64,16 @@ async function fetchAndFormatWeather(apiKey: string, location: string, days: num
     });
     return summary.trim();
   } catch (error: any) {
-    let detailedMessage = `Error: Could not fetch weather. ${error.message}. Using mock data instead.`;
-    if (error.message && error.message.toLowerCase().includes("failed to fetch")) {
-        detailedMessage += " This might be due to a CORS issue (if running locally), an invalid API key, a network problem, or the WeatherAPI service being temporarily unavailable. Please check the browser's Network tab for more details.";
+    let detailedMessage = `Error: Could not fetch weather. ${error.message}.`;
+    if (typeof window !== "undefined" && !navigator.onLine) {
+        detailedMessage += " You appear to be offline. Please check your internet connection.";
+    } else if (error.message && error.message.toLowerCase().includes("failed to fetch")) {
+        detailedMessage += " This might be due to a CORS issue (if running locally without proper proxy/server setup), an invalid API key, a network problem, or the WeatherAPI service being temporarily unavailable. Please check the browser's Network tab for more details.";
     }
+    detailedMessage += " Using mock data instead.";
     console.error("Error fetching or formatting weather data:", error, detailedMessage);
-    // Return a generic mock data string or the detailed message for the UI to display if needed
-    return "Mock Weather: Unable to fetch live data. Sunny, 25-30°C, Humidity 50-60%, No rain expected.";
+    // Return the detailed message for the UI to display if needed, or a generic mock
+    return "Mock Weather: Unable to fetch live data due to network or API issue. Using typical sunny conditions.";
   }
 }
 
@@ -90,7 +100,7 @@ export default function PestDiseaseOutlookPage() {
   
   const [predictionOutput, setPredictionOutput] = useState<PredictPestDiseaseOutput | null>(null);
 
-  const preprocessSensorData = (history: Partial<FirebaseRootData>[]) => {
+  const preprocessSensorData = (history: HistoricalDataPoint[]) => {
     if (history.length === 0) {
       toast({ title: "No Sensor History", description: "Using default sensor averages for prediction (Temp: 25°C, Humidity: 60%). Generate data on dashboard first.", variant: "default" });
       return { avgTemp: 25, avgHumidity: 60 };
@@ -108,7 +118,7 @@ export default function PestDiseaseOutlookPage() {
       setIsFetchingInitialData(true);
       setError(null);
       try {
-        const sensorHistory: Partial<FirebaseRootData>[] = await getSensorHistory(7);
+        const sensorHistory: HistoricalDataPoint[] = await getSensorHistory(7);
         const { avgTemp, avgHumidity } = preprocessSensorData(sensorHistory);
         setAverageTemperatureC(avgTemp);
         setAverageHumidityPercent(avgHumidity);
@@ -368,3 +378,4 @@ export default function PestDiseaseOutlookPage() {
     </div>
   );
 }
+
