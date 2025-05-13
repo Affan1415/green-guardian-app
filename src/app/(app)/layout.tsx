@@ -18,7 +18,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import Link from 'next/link';
-import { LayoutGrid, CalendarDays, LogOut, Leaf, UserCircle, Shield, Settings, LineChart, Bot as BotIcon } from 'lucide-react';
+import { LayoutGrid, CalendarDays, LogOut, Leaf, UserCircle, Shield, Settings, LineChart, Bot as BotIcon, Bug } from 'lucide-react'; // Added Bug icon
 import { Skeleton } from '@/components/ui/skeleton';
 import CorianderSupportChat from '@/components/CorianderSupportChat';
 
@@ -89,6 +89,14 @@ export default function AppLayout({
                 <SidebarMenuButton tooltip="Historical Data">
                   <LineChart />
                   <span>Historical Data</span>
+                </SidebarMenuButton>
+              </Link>
+            </SidebarMenuItem>
+             <SidebarMenuItem>
+              <Link href="/pest-disease-outlook" legacyBehavior passHref>
+                <SidebarMenuButton tooltip="Pest & Disease Outlook">
+                  <Bug />
+                  <span>Pest & Disease</span>
                 </SidebarMenuButton>
               </Link>
             </SidebarMenuItem>
