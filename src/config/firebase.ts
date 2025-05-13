@@ -17,6 +17,9 @@ import {
   set,
   get,
   child,
+  query,
+  orderByChild,
+  startAt,
   type DatabaseReference,
   type DataSnapshot,
 } from "firebase/database";
@@ -207,27 +210,54 @@ export const database = {
 export { app as firebaseApp };
 
 
-// Mock function for sensor history
+// Function to fetch real sensor history from Firebase Realtime Database
 export const getSensorHistory = async (days: number): Promise<HistoricalDataPoint[]> => {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      const history: HistoricalDataPoint[] = [];
-      const now = new Date();
-      for (let i = 0; i < days; i++) {
-        const pastDate = new Date(now);
-        // Iterate from `days - 1` down to `0` to get days in chronological order for the chart
-        pastDate.setDate(now.getDate() - (days - 1 - i)); 
-        pastDate.setHours(12, 0, 0, 0); // Set to noon for consistency
+  if (!dbInstance) {
+    console.warn("Firebase DB not initialized for getSensorHistory. Returning empty array.");
+    return [];
+  }
 
-        history.push({
-          timestamp: pastDate.getTime(),
-          V1: parseFloat((15 + Math.random() * 20).toFixed(1)), // Temperature (15-35°C)
-          V2: Math.floor(30 + Math.random() * 60),          // Humidity (30-90%)
-          V3: Math.floor(20 + Math.random() * 70),          // SoilMoisture (20-90%)
-          V4: Math.floor(2000 + Math.random() * 8000),        // Light (2000-10000 lux)
-        });
-      }
-      resolve(history);
-    }, 300);
-  });
+  try {
+    const logsRef = ref(dbInstance, 'sensor_logs');
+    const endTimestamp = Date.now();
+    const startTimestamp = endTimestamp - (days * 24 * 60 * 60 * 1000);
+
+    // Construct the query to fetch data ordered by timestamp and within the date range
+    // Note: Firebase RTDB filtering for a range with orderByChild/startAt/endAt can be tricky.
+    // For simplicity, we fetch starting from 'startTimestamp' and rely on client-side filtering if needed,
+    // or assume the number of data points isn't excessively large for 'days' up to 30.
+    // For very large datasets, consider more advanced querying or structuring data by day.
+    const dataQuery = query(logsRef, orderByChild('timestamp'), startAt(startTimestamp));
+
+    const snapshot = await get(dataQuery);
+    const history: HistoricalDataPoint[] = [];
+
+    if (snapshot.exists()) {
+      snapshot.forEach((childSnapshot) => {
+        const log = childSnapshot.val();
+        // Basic validation: ensure it's an object and has a timestamp
+        if (log && typeof log === 'object' && typeof log.timestamp === 'number') {
+          // Filter out logs that might be beyond the 'endTimestamp' if startAt includes future data somehow (unlikely with typical logging)
+          if (log.timestamp <= endTimestamp) {
+            history.push({
+              timestamp: log.timestamp,
+              V1: typeof log.V1 === 'number' ? log.V1 : undefined,
+              V2: typeof log.V2 === 'number' ? log.V2 : undefined,
+              V3: typeof log.V3 === 'number' ? log.V3 : undefined,
+              V4: typeof log.V4 === 'number' ? log.V4 : undefined,
+            });
+          }
+        }
+      });
+      // Data fetched with orderByChild('timestamp') and startAt() should be in ascending order of timestamp.
+      // No explicit sort should be needed here if data is logged chronologically.
+    }
+    
+    console.log(`Fetched ${history.length} real historical data points for the last ${days} days.`);
+    return history;
+  } catch (error) {
+    console.error("Error fetching real historical data:", error);
+    // Fallback to empty array on error. Could also return mock data or re-throw.
+    return []; 
+  }
 };
