@@ -18,7 +18,7 @@ const PlantGrowthStageSchema = z.enum([
   "Not Specified"
 ]).describe("The current growth stage of the coriander plants.");
 
-export const PredictPestDiseaseInputSchema = z.object({
+const PredictPestDiseaseInputSchema = z.object({
   cropType: z.string().default("Coriander").describe("The type of crop, fixed to Coriander for this flow."),
   averageTemperatureC: z.number().describe("The average current or recent temperature in Celsius."),
   averageHumidityPercent: z.number().describe("The average current or recent humidity percentage."),
@@ -40,7 +40,7 @@ const PestDiseasePredictionDetailSchema = z.object({
   chemicalTreatmentOptions: z.array(z.string()).optional().describe("Suggested chemical treatment options, if applicable. Include a note about careful use."),
 });
 
-export const PredictPestDiseaseOutputSchema = z.object({
+const PredictPestDiseaseOutputSchema = z.object({
   predictions: z.array(PestDiseasePredictionDetailSchema).describe("An array of predictions for common coriander pests and diseases."),
   overallOutlook: z.string().describe("A general summary of the pest and disease outlook for coriander based on the analysis."),
   criticalWarnings: z.array(z.string()).optional().describe("Any critical, high-risk warnings that require immediate attention."),

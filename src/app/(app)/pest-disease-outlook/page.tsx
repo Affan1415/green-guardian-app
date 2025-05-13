@@ -13,12 +13,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { Input } from "@/components/ui/input"; // Added import for Input
 import {
   predictPestDisease,
   type PredictPestDiseaseInput,
   type PredictPestDiseaseOutput,
-  PredictPestDiseaseInputSchema // For default values
+  // PredictPestDiseaseInputSchema // Removed import
 } from '@/ai/flows/predict-pest-disease-flow';
+import type { PestDiseasePredictionDetailSchema as PDPSchema } from '@/ai/flows/predict-pest-disease-flow'; // Import type for internal use if needed
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
@@ -61,6 +63,13 @@ async function fetchAndFormatWeather(apiKey: string, location: string, days: num
 }
 
 const GROWTH_STAGES = ["Seedling", "Vegetative", "Mature", "Flowering/Bolting", "Not Specified"] as const;
+type GrowthStageType = typeof GROWTH_STAGES[number];
+
+// Define default values for form fields that were previously derived from schema
+const DEFAULT_RECENT_PEST_NOTES = "No specific observations noted.";
+const DEFAULT_PLANT_GROWTH_STAGE: GrowthStageType = "Not Specified";
+const DEFAULT_WEATHER_SUMMARY_FALLBACK = "Default weather summary due to error.";
+
 
 export default function PestDiseaseOutlookPage() {
   const { toast } = useToast();
@@ -73,7 +82,7 @@ export default function PestDiseaseOutlookPage() {
   const [averageHumidityPercent, setAverageHumidityPercent] = useState<number>(60);
   const [weatherForecastSummary, setWeatherForecastSummary] = useState<string>("");
   const [recentPestActivityNotes, setRecentPestActivityNotes] = useState<string>("");
-  const [plantGrowthStage, setPlantGrowthStage] = useState<typeof GROWTH_STAGES[number]>("Not Specified");
+  const [plantGrowthStage, setPlantGrowthStage] = useState<GrowthStageType>(DEFAULT_PLANT_GROWTH_STAGE);
   
   const [predictionOutput, setPredictionOutput] = useState<PredictPestDiseaseOutput | null>(null);
 
@@ -107,7 +116,7 @@ export default function PestDiseaseOutlookPage() {
         console.error("Error fetching initial data:", err);
         setError("Failed to load initial sensor or weather data. Please try refreshing.");
         toast({ variant: "destructive", title: "Data Load Error", description: err.message });
-        setWeatherForecastSummary(PredictPestDiseaseInputSchema.shape.sevenDayWeatherForecastSummary._def.defaultValue?.() || "Default weather summary due to error.");
+        setWeatherForecastSummary(DEFAULT_WEATHER_SUMMARY_FALLBACK);
       } finally {
         setIsFetchingInitialData(false);
       }
@@ -123,12 +132,12 @@ export default function PestDiseaseOutlookPage() {
 
     try {
       const input: PredictPestDiseaseInput = {
-        cropType: "Coriander", // Fixed as per flow
+        cropType: "Coriander", 
         averageTemperatureC,
         averageHumidityPercent,
         sevenDayWeatherForecastSummary: weatherForecastSummary,
-        recentPestActivityNotes: recentPestActivityNotes || PredictPestDiseaseInputSchema.shape.recentPestActivityNotes._def.defaultValue?.(),
-        plantGrowthStage: plantGrowthStage || PredictPestDiseaseInputSchema.shape.plantGrowthStage._def.defaultValue?.(),
+        recentPestActivityNotes: recentPestActivityNotes || DEFAULT_RECENT_PEST_NOTES,
+        plantGrowthStage: plantGrowthStage || DEFAULT_PLANT_GROWTH_STAGE,
       };
       
       toast({ title: "Analyzing Risks...", description: "Green Guardian AI is processing the data." });
@@ -145,16 +154,16 @@ export default function PestDiseaseOutlookPage() {
     }
   };
 
-  const getRiskBadgeVariant = (riskLevel: PestDiseasePredictionDetailSchema['riskLevel']): "default" | "secondary" | "destructive" | "outline" => {
+  const getRiskBadgeVariant = (riskLevel: PDPSchema['riskLevel']): "default" | "secondary" | "destructive" | "outline" => {
     switch (riskLevel) {
       case 'Very High':
       case 'High':
         return 'destructive';
       case 'Medium':
-        return 'secondary'; // Or another color like orange if you add custom variants
+        return 'secondary'; 
       case 'Low':
       case 'Negligible':
-        return 'default'; // Green
+        return 'default'; 
       default:
         return 'outline';
     }
@@ -200,7 +209,7 @@ export default function PestDiseaseOutlookPage() {
             
             <div className="space-y-2">
               <Label htmlFor="plantGrowthStage">Plant Growth Stage</Label>
-              <Select value={plantGrowthStage} onValueChange={(value: typeof GROWTH_STAGES[number]) => setPlantGrowthStage(value)}>
+              <Select value={plantGrowthStage} onValueChange={(value: GrowthStageType) => setPlantGrowthStage(value)}>
                 <SelectTrigger id="plantGrowthStage" className="bg-input/30">
                   <SelectValue placeholder="Select stage" />
                 </SelectTrigger>
@@ -276,7 +285,7 @@ export default function PestDiseaseOutlookPage() {
                          {pred.pestOrDiseaseName} 
                          {pred.scientificName && <i className="text-xs text-muted-foreground">({pred.scientificName})</i>}
                        </span>
-                       <Badge variant={getRiskBadgeVariant(pred.riskLevel)} className="ml-auto mr-2 capitalize text-xs px-2 py-0.5 h-5">
+                       <Badge variant={getRiskBadgeVariant(pred.riskLevel as PDPSchema['riskLevel'])} className="ml-auto mr-2 capitalize text-xs px-2 py-0.5 h-5">
                          {pred.riskLevel} Risk
                        </Badge>
                     </div>
