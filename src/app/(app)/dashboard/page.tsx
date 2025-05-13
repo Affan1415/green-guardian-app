@@ -79,21 +79,31 @@ export default function DashboardPage() {
   // AI Mode Logic Effect
   useEffect(() => {
     if (firebaseData?.Mode === "1" && currentUser && !loadingData) {
-      const temp = typeof firebaseData.V1 === 'number' ? firebaseData.V1 : null;
-      const humidity = typeof firebaseData.V2 === 'number' ? firebaseData.V2 : null;
-      const soilMoisture = typeof firebaseData.V3 === 'number' ? firebaseData.V3 : null;
-      const light = typeof firebaseData.V4 === 'number' ? firebaseData.V4 : null;
+      const parseSensorValue = (value: any): number | null => {
+        if (typeof value === 'number') return value;
+        if (typeof value === 'string') {
+          const num = parseFloat(value);
+          return isNaN(num) ? null : num;
+        }
+        return null;
+      };
+
+      const temp = parseSensorValue(firebaseData.V1);
+      const humidity = parseSensorValue(firebaseData.V2);
+      const soilMoisture = parseSensorValue(firebaseData.V3);
+      const light = parseSensorValue(firebaseData.V4);
 
       // --- Desired states default to OFF ("0") ---
       let desiredFanState: "0" | "1" = "0";
       let desiredLidState: "0" | "1" = "0";
-      let desiredPumpState: "0" | "1" = "0"; // Will be initialized by current state for hysteresis
-      let desiredBulbState: "0" | "1" = "0"; // Will be initialized by current state for hysteresis
+      // Initialize with current state for hysteresis, defaulting to "0" if not present in firebaseData
+      let desiredPumpState: "0" | "1" = firebaseData.B3 === "1" ? "1" : "0"; 
+      let desiredBulbState: "0" | "1" = firebaseData.B2 === "1" ? "1" : "0";
 
       // --- Fan (B4) Logic ---
       // Priority: High humidity turns fan ON.
       // Else, if temp is high, fan ON.
-      // Else, if temp is low, fan OFF.
+      // Else, if temp is low (and humidity not high), fan OFF.
       // Default is OFF if no condition met or sensors null.
       if (humidity !== null && humidity > CORIANDER_THRESHOLDS.HUMIDITY_HIGH_FAN_ON) {
         desiredFanState = "1";
@@ -101,9 +111,14 @@ export default function DashboardPage() {
         if (temp > CORIANDER_THRESHOLDS.TEMP_HIGH) {
           desiredFanState = "1";
         } else if (temp < CORIANDER_THRESHOLDS.TEMP_LOW_FAN_OFF) {
-          desiredFanState = "0"; 
+           // Only turn fan off due to low temp if humidity isn't forcing it on
+          if (!(humidity !== null && humidity > CORIANDER_THRESHOLDS.HUMIDITY_HIGH_FAN_ON)) {
+             desiredFanState = "0";
+          }
         }
+        // If temp is between LOW_FAN_OFF and TEMP_HIGH, and humidity is not forcing ON, fan remains default "0".
       }
+
 
       // --- Lid (B5) Logic ---
       // Lid opens if humidity is high AND the fan *will be* ON.
@@ -115,28 +130,30 @@ export default function DashboardPage() {
         } else if (humidity < CORIANDER_THRESHOLDS.HUMIDITY_LOW_LID_CLOSE || desiredFanState === "0") {
           desiredLidState = "0"; 
         }
+        // If fan is ON and humidity is moderate (between LOW_LID_CLOSE and HIGH_LID_OPEN), lid remains default "0" (closed).
       }
 
+
       // --- Pump (B3) Logic (with Hysteresis) ---
-      desiredPumpState = firebaseData.B3 ?? "0"; // Initialize with current state for hysteresis
       if (soilMoisture !== null) {
         if (soilMoisture < CORIANDER_THRESHOLDS.SOIL_MOISTURE_LOW_PUMP_ON) {
           desiredPumpState = "1"; 
         } else if (soilMoisture > CORIANDER_THRESHOLDS.SOIL_MOISTURE_HIGH_PUMP_OFF) {
           desiredPumpState = "0"; 
         }
+        // If soilMoisture is between thresholds, pump state (desiredPumpState) remains as initialized (current state).
       } else {
         desiredPumpState = "0"; // Default to OFF if sensor data unavailable
       }
 
       // --- Bulb (B2) Logic (with Hysteresis) ---
-      desiredBulbState = firebaseData.B2 ?? "0"; // Initialize with current state for hysteresis
       if (light !== null) {
         if (light < CORIANDER_THRESHOLDS.LIGHT_LOW_BULB_ON) {
           desiredBulbState = "1";
         } else if (light > CORIANDER_THRESHOLDS.LIGHT_HIGH_BULB_OFF) {
           desiredBulbState = "0";
         }
+        // If light is between thresholds, bulb state (desiredBulbState) remains as initialized (current state).
       } else {
         desiredBulbState = "0"; // Default to OFF if sensor data unavailable
       }
@@ -147,7 +164,7 @@ export default function DashboardPage() {
       updateFirebaseDevice("B4", desiredFanState, firebaseData.B4);
       updateFirebaseDevice("B5", desiredLidState, firebaseData.B5);
     }
-  }, [firebaseData, currentUser, loadingData, updateFirebaseDevice, toast]);
+  }, [firebaseData, currentUser, loadingData, updateFirebaseDevice]);
 
 
   const handleToggleDevice = async (key: DeviceFirebaseKey, currentValue: "0" | "1" | undefined) => {
@@ -208,7 +225,7 @@ export default function DashboardPage() {
             variant={isAiModeActive ? "default" : "secondary"}
             className={cn(
               "w-full sm:w-auto text-white",
-              isAiModeActive ? "bg-primary hover:bg-primary/90" : "bg-accent hover:bg-accent/90 "
+              isAiModeActive ? "bg-primary hover:bg-primary/90" : "bg-accent hover:bg-accent/90 text-accent-foreground"
             )}
           >
             {isAiModeActive ? <Brain className="mr-2 h-5 w-5" /> : <UserCog className="mr-2 h-5 w-5" />}
