@@ -34,7 +34,7 @@ const PestDiseasePredictionDetailSchema = z.object({
   scientificName: z.string().optional().describe("Scientific name of the pest or disease, if applicable."),
   description: z.string().describe("A brief description of the pest or disease and its impact on coriander."),
   symptoms: z.array(z.string()).describe("Common symptoms to look for on coriander plants."),
-  contributingFactors: z.array(z.string()).describe("Factors from the provided data (temp, humidity, forecast) that contribute to this risk."),
+  contributingFactors: z.array(z.string()).describe("Factors from the provided data (temp, humidity, forecast) that contribute to this risk, explaining *how* they contribute to the specific pest/disease."),
   preventativeActions: z.array(z.string()).describe("Actionable preventative measures to mitigate the risk."),
   organicTreatmentOptions: z.array(z.string()).optional().describe("Suggested organic treatment options if the pest/disease occurs."),
   chemicalTreatmentOptions: z.array(z.string()).optional().describe("Suggested chemical treatment options, if applicable. Include a note about careful use."),
@@ -80,7 +80,7 @@ Key considerations:
     - Assess the riskLevel (Negligible, Low, Medium, High, Very High) based on how the input data (temperature, humidity, forecast, stage) aligns with conditions favorable for it.
     - Provide a brief description of the pest/disease.
     - List common symptoms observable on Coriander.
-    - Detail the contributingFactors from the input data that elevate or decrease its risk.
+    - Detail the contributingFactors from the input data that elevate or decrease its risk. **Crucially, explain *how* these factors (e.g., 'High humidity ({{averageHumidityPercent}}%) as seen in the forecast for the next 3 days significantly increases the risk of Powdery Mildew because fungal spores thrive in such conditions', or 'Temperatures consistently above 28°C ({{averageTemperatureC}}°C) can stress coriander, making it more susceptible to Fusarium Wilt, especially if soil moisture is also high.') specifically contribute to the likelihood of *this particular* pest or disease. Do not simply list the environmental data itself as a risk factor like "High temperature".**
     - Suggest specific, actionable preventativeActions.
     - If applicable, list organicTreatmentOptions.
     - If applicable, list chemicalTreatmentOptions and include a standard caution about following label instructions and safety.
@@ -89,15 +89,15 @@ Key considerations:
 - Populate the 'predictionMethodologyExplanation' field: Provide a brief paragraph. Start by stating that this analysis is derived from a broad understanding of plant science, including botany and horticulture. Then, explain that the predictions consider how common coriander pests and diseases typically respond to various environmental conditions (such as temperature, humidity, weather patterns like rain) and how the plant's growth stage can influence its susceptibility. Conclude by mentioning that the advice also incorporates general agricultural best practices for coriander cultivation. It's important to clarify this is a synthesis of information, not a real-time search of specific documents or research papers.
 - Always include the standard disclaimer.
 
-Focus on providing practical advice. For example, if high humidity is a factor, suggest improving air circulation as a preventative action.
-If the weather forecast indicates upcoming rain and high humidity, this might increase fungal disease risk.
-If the plant stage is 'Seedling' and conditions are damp, 'Damping Off' risk is higher.
-If 'No specific observations noted' by user, rely solely on environmental data.
+Focus on providing practical advice. For example, if high humidity is a contributing factor to Powdery Mildew risk, suggest 'Improve air circulation by ensuring adequate spacing between plants and using fans if in a controlled environment' as a preventative action.
+If the weather forecast indicates upcoming rain and sustained high humidity, this might increase the risk of fungal diseases like Powdery Mildew or Bacterial Leaf Spot. Link the forecast directly to these diseases in 'contributingFactors'.
+If the plant stage is 'Seedling' and conditions are damp and cool, 'Damping Off' risk is higher. Explain this link in 'contributingFactors' for Damping Off.
+If 'No specific observations noted' by user, rely solely on environmental data to link to specific pest/disease risks.
 Ensure the scientificName is accurate if provided.
-If conditions are generally unfavorable for most common pests/diseases, reflect this in 'Negligible' or 'Low' risk levels and a positive overallOutlook.
+If conditions are generally unfavorable for most common pests/diseases, reflect this in 'Negligible' or 'Low' risk levels and a positive overallOutlook. For example, if it's consistently dry and cool, the risk for many fungal diseases will be low; state this in 'contributingFactors' for relevant diseases.
 `,
   config: {
-    temperature: 0.4, // Slightly lower temperature for more deterministic diagnostic-style output
+    temperature: 0.3, // Slightly lower temperature for more deterministic and factual diagnostic-style output
     // safetySettings: [ // Example safety settings
     //   { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' } // Might be needed if discussing pesticides
     // ]
