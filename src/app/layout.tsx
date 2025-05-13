@@ -1,3 +1,4 @@
+
 import type { Metadata } from 'next';
 import { GeistSans } from 'geist/font/sans';
 // Removed incorrect import: import { GeistMono } from 'geist/font/mono';
@@ -11,6 +12,15 @@ import { Toaster } from '@/components/ui/toaster';
 export const metadata: Metadata = {
   title: 'Green Guardian',
   description: 'Smart Agriculture Management System',
+  icons: {
+    icon: '/logo.png', // Assumes logo.png is in the public folder
+    // For different sizes or types, you can expand this:
+    // icon: [
+    //   { url: '/logo.png', type: 'image/png' },
+    //   { url: '/logo.svg', type: 'image/svg+xml' },
+    // ],
+    // apple: '/apple-logo.png',
+  },
 };
 
 export default function RootLayout({
@@ -29,3 +39,4 @@ export default function RootLayout({
     </html>
   );
 }
+
