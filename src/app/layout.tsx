@@ -13,11 +13,11 @@ export const metadata: Metadata = {
   title: 'Green Guardian',
   description: 'Smart Agriculture Management System',
   icons: {
-    icon: '/logo.png', // Assumes logo.png is in the public folder
+    icon: '/logo.svg', // Updated to use SVG logo
     // For different sizes or types, you can expand this:
     // icon: [
-    //   { url: '/logo.png', type: 'image/png' },
     //   { url: '/logo.svg', type: 'image/svg+xml' },
+    //   { url: '/logo.png', type: 'image/png' }, // Example if you also have a PNG
     // ],
     // apple: '/apple-logo.png',
   },
