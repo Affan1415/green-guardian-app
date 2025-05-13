@@ -83,17 +83,25 @@ To enable efficient querying of historical sensor data by timestamp, you **must*
         // ... your existing rules ...
         "users": {
           // ... your user rules ...
+          ".read": "auth != null",
+          "$uid": {
+            ".write": "$uid === auth.uid",
+            ".read": "$uid === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'admin'"
+          }
         },
         "schedules": {
-            // ... your schedule rules ...
+           "$uid": {
+            ".read": "$uid === auth.uid",
+            ".write": "$uid === auth.uid"
+          }
         },
         "sensor_logs": {
-          ".read": "auth != null", // Or your preferred read access rule
-          ".write": "auth != null", // Or your preferred write access rule
+          ".read": "auth != null", 
+          ".write": "auth != null", // Or your preferred write access rule, e.g., only specific devices/admins can write
           ".indexOn": "timestamp" // This is the crucial line to add or ensure exists
         },
         // ... other root level data rules if any ...
-        "B2": { // Example rule for an actuator
+        "B2": { 
           ".read": "auth != null",
           ".write": "auth != null"
         },
@@ -115,7 +123,7 @@ To enable efficient querying of historical sensor data by timestamp, you **must*
         },
         "V1": {
            ".read": "auth != null",
-           ".write": "auth != null" // Typically sensors only write, but read for dashboard
+           ".write": "auth != null" 
         },
         "V2": {
            ".read": "auth != null",
