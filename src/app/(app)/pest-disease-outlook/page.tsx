@@ -19,11 +19,13 @@ import {
   type PredictPestDiseaseInput,
   type PredictPestDiseaseOutput,
 } from '@/ai/flows/predict-pest-disease-flow';
-// Explicitly type PDPSchema for clarity, though it's inferred from PredictPestDiseaseOutput
-import type { PestDiseasePredictionDetailSchema as PDPSchemaType } from '@/ai/flows/predict-pest-disease-flow'; 
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
+
+// Derive the type for a single prediction item and its riskLevel property
+type SinglePredictionItemType = PredictPestDiseaseOutput['predictions'][number];
+type RiskLevelEnumType = SinglePredictionItemType['riskLevel'];
 
 
 const WEATHER_API_KEY = process.env.NEXT_PUBLIC_WEATHER_API_KEY || 'e5016b764c7140f792d214117251205'; 
@@ -46,8 +48,10 @@ async function fetchAndFormatWeather(apiKey: string, location: string, days: num
       } else if (response.status === 400) {
          errorMessage += " This might be due to an invalid location or malformed request."
       }
-      errorMessage += " Using mock data instead.";
-      return errorMessage;
+      // Do not append "Using mock data instead" here, let the caller handle fallback.
+      // throw new Error(errorMessage); // Throw to indicate failure to the caller
+      console.warn(errorMessage, "Falling back to mock data due to API error.");
+      return "Mock Weather: Failed to fetch live data. Sunny, 25-30°C, Humidity 50-60%."; // Return mock data on error
     }
     const data = await response.json();
     
@@ -70,10 +74,10 @@ async function fetchAndFormatWeather(apiKey: string, location: string, days: num
     } else if (error.message && error.message.toLowerCase().includes("failed to fetch")) {
         detailedMessage += " This might be due to a CORS issue (if running locally without proper proxy/server setup), an invalid API key, a network problem, or the WeatherAPI service being temporarily unavailable. Please check the browser's Network tab for more details.";
     }
-    detailedMessage += " Using mock data instead.";
-    console.error("Error fetching or formatting weather data:", error, detailedMessage);
-    // Return the detailed message for the UI to display if needed, or a generic mock
-    return "Mock Weather: Unable to fetch live data due to network or API issue. Using typical sunny conditions.";
+    // Do not append "Using mock data instead" here, let the caller handle fallback.
+    // throw new Error(detailedMessage); // Throw to indicate failure
+    console.error("Error fetching or formatting weather data:", error, detailedMessage, "Falling back to mock data.");
+    return "Mock Weather: Unable to fetch live data due to network or API issue. Using typical sunny conditions."; // Return mock data on error
   }
 }
 
@@ -82,7 +86,7 @@ type GrowthStageType = typeof GROWTH_STAGES[number];
 
 const DEFAULT_RECENT_PEST_NOTES = "No specific observations noted.";
 const DEFAULT_PLANT_GROWTH_STAGE: GrowthStageType = "Not Specified";
-const DEFAULT_WEATHER_SUMMARY_FALLBACK = "Default weather summary due to error or API key issue.";
+const DEFAULT_WEATHER_SUMMARY_FALLBACK = "Default weather summary: Sunny, 25-30°C, Humidity 50-60%, No rain expected for next 7 days.";
 
 
 export default function PestDiseaseOutlookPage() {
@@ -94,7 +98,7 @@ export default function PestDiseaseOutlookPage() {
   
   const [averageTemperatureC, setAverageTemperatureC] = useState<number>(25);
   const [averageHumidityPercent, setAverageHumidityPercent] = useState<number>(60);
-  const [weatherForecastSummary, setWeatherForecastSummary] = useState<string>("");
+  const [weatherForecastSummary, setWeatherForecastSummary] = useState<string>(DEFAULT_WEATHER_SUMMARY_FALLBACK);
   const [recentPestActivityNotes, setRecentPestActivityNotes] = useState<string>("");
   const [plantGrowthStage, setPlantGrowthStage] = useState<GrowthStageType>(DEFAULT_PLANT_GROWTH_STAGE);
   
@@ -118,8 +122,8 @@ export default function PestDiseaseOutlookPage() {
       setIsFetchingInitialData(true);
       setError(null);
       try {
-        const sensorHistory: HistoricalDataPoint[] = await getSensorHistory(7);
-        const { avgTemp, avgHumidity } = preprocessSensorData(sensorHistory);
+        const sensorHistoryData: HistoricalDataPoint[] = await getSensorHistory(7);
+        const { avgTemp, avgHumidity } = preprocessSensorData(sensorHistoryData);
         setAverageTemperatureC(avgTemp);
         setAverageHumidityPercent(avgHumidity);
 
@@ -168,7 +172,7 @@ export default function PestDiseaseOutlookPage() {
     }
   };
 
-  const getRiskBadgeVariant = (riskLevel: PDPSchemaType['riskLevel']): "default" | "secondary" | "destructive" | "outline" => {
+  const getRiskBadgeVariant = (riskLevel: RiskLevelEnumType): "default" | "secondary" | "destructive" | "outline" => {
     switch (riskLevel) {
       case 'Very High':
       case 'High':
@@ -309,7 +313,7 @@ export default function PestDiseaseOutlookPage() {
                          {pred.pestOrDiseaseName} 
                          {pred.scientificName && <i className="text-xs text-muted-foreground">({pred.scientificName})</i>}
                        </span>
-                       <Badge variant={getRiskBadgeVariant(pred.riskLevel as PDPSchemaType['riskLevel'])} className="ml-auto mr-2 capitalize text-xs px-2 py-0.5 h-5">
+                       <Badge variant={getRiskBadgeVariant(pred.riskLevel)} className="ml-auto mr-2 capitalize text-xs px-2 py-0.5 h-5">
                          {pred.riskLevel} Risk
                        </Badge>
                     </div>
