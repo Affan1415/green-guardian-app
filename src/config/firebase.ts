@@ -1,4 +1,3 @@
-
 import { initializeApp, getApps, type FirebaseApp } from "firebase/app";
 // import { getAnalytics } from "firebase/analytics"; // Uncomment if needed
 import {
@@ -20,6 +19,8 @@ import {
   query,
   orderByChild,
   startAt,
+  endAt, // Added for potential future use, though not strictly needed with current client filter
+  limitToLast, // Added for potential future use
   type DatabaseReference,
   type DataSnapshot,
 } from "firebase/database";
@@ -54,10 +55,9 @@ if (typeof window !== 'undefined') {
 export const auth = {
   onAuthStateChanged: (callback: (user: UserProfile | null) => void) => {
     if (!authInstance) {
-      // This case should ideally not happen in client-side usage after initialization
       console.warn("Auth instance not available for onAuthStateChanged");
       callback(null);
-      return () => {}; // Return an empty unsubscribe function
+      return () => {}; 
     }
     return onAuthStateChanged(authInstance, async (firebaseUser: FirebaseUser | null) => {
       if (firebaseUser) {
@@ -73,8 +73,6 @@ export const auth = {
             role = userData.role || 'user';
             displayName = userData.displayName || displayName;
           } else {
-            // If user record doesn't exist in DB (e.g., first login after manual creation in Auth console)
-            // Create a basic record.
             await set(userDbRef, {
               email: firebaseUser.email,
               displayName: displayName,
@@ -91,12 +89,11 @@ export const auth = {
           callback(userProfile);
         } catch (error) {
           console.error("Error fetching user details from DB:", error);
-          // Fallback to basic user profile if DB fetch fails
           const userProfile: UserProfile = {
             uid: firebaseUser.uid,
             email: firebaseUser.email,
             displayName: firebaseUser.displayName || firebaseUser.email,
-            role: 'user', // Default role on error
+            role: 'user', 
           };
           callback(userProfile);
         }
@@ -113,7 +110,6 @@ export const auth = {
     const userCredential = await signInWithEmailAndPassword(authInstance, email, password);
     const firebaseUser = userCredential.user;
 
-    // Fetch role and display name from DB as onAuthStateChanged would
     const userDbRef = ref(dbInstance, `users/${firebaseUser.uid}`);
     const userSnapshot = await get(userDbRef);
     let role: 'admin' | 'user' = 'user';
@@ -124,8 +120,7 @@ export const auth = {
       role = userData.role || 'user';
       displayName = userData.displayName || displayName;
     }
-    // No need to create profile here, onAuthStateChanged handles it or it already exists
-
+    
     const profile: UserProfile = {
       uid: firebaseUser.uid,
       email: firebaseUser.email,
@@ -142,15 +137,14 @@ export const auth = {
     const userCredential = await createUserWithEmailAndPassword(authInstance, email, password);
     const firebaseUser = userCredential.user;
     
-    // Set initial displayName in Firebase Auth if not already set (usually isn't on creation)
     if (!firebaseUser.displayName) {
         await updateProfile(firebaseUser, { displayName: email.split('@')[0] });
     }
 
     const userProfileData = {
       email: firebaseUser.email,
-      displayName: email.split('@')[0], // Use part of email as default displayName
-      role: 'user' as const // Default role for new signups
+      displayName: email.split('@')[0], 
+      role: 'user' as const 
     };
     await set(ref(dbInstance, `users/${firebaseUser.uid}`), userProfileData);
     
@@ -206,12 +200,26 @@ export const database = {
   }
 };
 
-// This is the initialized Firebase app instance, if needed elsewhere.
 export { app as firebaseApp };
 
-
-// Function to fetch real sensor history from Firebase Realtime Database
-export const getSensorHistory = async (days: number): Promise<HistoricalDataPoint[]> => {
+/**
+ * Fetches sensor log data from Firebase Realtime Database for the specified number of past days.
+ * Example structure for `sensor_logs` in Firebase:
+ * "sensor_logs": {
+ *   "<unique_log_id_1>": {
+ *     "timestamp": 1678886400000, // Unix timestamp (milliseconds)
+ *     "V1": 25, // Temperature
+ *     "V2": 60, // Humidity
+ *     "V3": 50, // Soil Moisture
+ *     "V4": 5000 // Light Intensity
+ *   },
+ *   // ... more entries
+ * }
+ * Note: For optimal performance and to enforce data retention (e.g., only keep last 7 days),
+ * consider using Firebase Cloud Functions to periodically prune old data from `sensor_logs`.
+ * This client-side function only fetches data, it does not manage data retention in the database.
+ */
+export const getSensorHistory = async (daysToFetch: number): Promise<HistoricalDataPoint[]> => {
   if (!dbInstance) {
     console.warn("Firebase DB not initialized for getSensorHistory. Returning empty array.");
     return [];
@@ -220,44 +228,38 @@ export const getSensorHistory = async (days: number): Promise<HistoricalDataPoin
   try {
     const logsRef = ref(dbInstance, 'sensor_logs');
     const endTimestamp = Date.now();
-    const startTimestamp = endTimestamp - (days * 24 * 60 * 60 * 1000);
+    const startTimestamp = endTimestamp - (daysToFetch * 24 * 60 * 60 * 1000);
 
-    // Construct the query to fetch data ordered by timestamp and within the date range
-    // Note: Firebase RTDB filtering for a range with orderByChild/startAt/endAt can be tricky.
-    // For simplicity, we fetch starting from 'startTimestamp' and rely on client-side filtering if needed,
-    // or assume the number of data points isn't excessively large for 'days' up to 30.
-    // For very large datasets, consider more advanced querying or structuring data by day.
+    // Query to get data within the time range, ordered by timestamp.
+    // Fetches data from startTimestamp up to the current time.
+    // If you have a very large number of logs, consider adding limitToLast()
+    // in conjunction with orderByChild, but ensure your data is indexed correctly.
     const dataQuery = query(logsRef, orderByChild('timestamp'), startAt(startTimestamp));
-
+    
     const snapshot = await get(dataQuery);
     const history: HistoricalDataPoint[] = [];
 
     if (snapshot.exists()) {
       snapshot.forEach((childSnapshot) => {
         const log = childSnapshot.val();
-        // Basic validation: ensure it's an object and has a timestamp
-        if (log && typeof log === 'object' && typeof log.timestamp === 'number') {
-          // Filter out logs that might be beyond the 'endTimestamp' if startAt includes future data somehow (unlikely with typical logging)
-          if (log.timestamp <= endTimestamp) {
-            history.push({
-              timestamp: log.timestamp,
-              V1: typeof log.V1 === 'number' ? log.V1 : undefined,
-              V2: typeof log.V2 === 'number' ? log.V2 : undefined,
-              V3: typeof log.V3 === 'number' ? log.V3 : undefined,
-              V4: typeof log.V4 === 'number' ? log.V4 : undefined,
-            });
-          }
+        // Basic validation
+        if (log && typeof log === 'object' && typeof log.timestamp === 'number' && log.timestamp <= endTimestamp) {
+          history.push({
+            timestamp: log.timestamp,
+            V1: typeof log.V1 === 'number' ? log.V1 : undefined,
+            V2: typeof log.V2 === 'number' ? log.V2 : undefined,
+            V3: typeof log.V3 === 'number' ? log.V3 : undefined,
+            V4: typeof log.V4 === 'number' ? log.V4 : undefined,
+          });
         }
       });
-      // Data fetched with orderByChild('timestamp') and startAt() should be in ascending order of timestamp.
-      // No explicit sort should be needed here if data is logged chronologically.
     }
     
-    console.log(`Fetched ${history.length} real historical data points for the last ${days} days.`);
+    console.log(`Fetched ${history.length} historical data points for the last ${daysToFetch} days from 'sensor_logs'.`);
+    // Data is already ordered by timestamp due to the Firebase query.
     return history;
   } catch (error) {
-    console.error("Error fetching real historical data:", error);
-    // Fallback to empty array on error. Could also return mock data or re-throw.
+    console.error("Error fetching historical data from 'sensor_logs':", error);
     return []; 
   }
 };
