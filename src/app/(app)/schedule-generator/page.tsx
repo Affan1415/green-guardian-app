@@ -1,3 +1,4 @@
+
 "use client";
 import type { ChangeEvent, FormEvent } from 'react';
 import React, { useState, useEffect } from 'react';
@@ -25,8 +26,7 @@ const FIXED_CROP_TYPE = 'Coriander';
 const ACTUATOR_KEYS: (keyof Omit<ActuatorScheduleEntry, 'time'>)[] = ['fan', 'pump', 'lid', 'bulb'];
 const ACTUATOR_STATES: ActuatorState[] = ['ON', 'OFF', 'Idle'];
 
-// IMPORTANT: Move this key to an environment variable (e.g., NEXT_PUBLIC_WEATHER_API_KEY) in a real application!
-const WEATHER_API_KEY = 'e5016b764c7140f792d214117251205'; 
+const WEATHER_API_KEY = process.env.NEXT_PUBLIC_WEATHER_API_KEY || 'e5016b764c7140f792d214117251205';
 const WEATHER_API_LOCATION = 'Lahore'; // Default location, can be made dynamic
 
 const generateTimeSlots = (): string[] => {
@@ -75,22 +75,22 @@ interface WeatherApiResponse {
 }
 
 async function fetchAndFormatWeather(apiKey: string, location: string, days: number = 7): Promise<string | null> {
-  if (!apiKey) {
-    console.warn("Weather API key not provided. Using mock data.");
+  if (!apiKey || apiKey === 'your_weather_api_key_here') { // Check for placeholder or missing key
+    console.warn("Weather API key not provided or is a placeholder. Using mock data.");
     return null; 
   }
   const url = `https://api.weatherapi.com/v1/forecast.json?key=${apiKey}&q=${location}&days=${days}&aqi=no&alerts=no`;
   try {
     const response = await fetch(url);
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({})); // Try to get error message from API
+      const errorData = await response.json().catch(() => ({}));
       console.error(`WeatherAPI request failed with status ${response.status}`, errorData);
-      throw new Error(`WeatherAPI request failed: ${errorData?.error?.message || response.statusText}`);
+      throw new Error(`WeatherAPI request failed: ${errorData?.error?.message || response.statusText}. Using mock data instead.`);
     }
     const data: WeatherApiResponse = await response.json();
     
     if (!data.forecast || !data.forecast.forecastday || data.forecast.forecastday.length === 0) {
-      console.warn("WeatherAPI response did not contain valid forecast data.");
+      console.warn("WeatherAPI response did not contain valid forecast data. Using mock data instead.");
       return null;
     }
 
@@ -101,9 +101,13 @@ async function fetchAndFormatWeather(apiKey: string, location: string, days: num
       summary += `${dayLabel} (${dateObj.toLocaleDateString('en-US', { weekday: 'short' })}): ${item.day.condition.text}, Max Temp: ${item.day.maxtemp_c}°C, Min Temp: ${item.day.mintemp_c}°C, Avg Humidity: ${item.day.avghumidity}%, Chance of Rain: ${item.day.daily_chance_of_rain}%. \n`;
     });
     return summary.trim();
-  } catch (error) {
-    console.error("Error fetching or formatting weather data:", error);
-    return null;
+  } catch (error: any) {
+    let logMessage = "Error fetching or formatting weather data:";
+    if (error.message && error.message.toLowerCase().includes("failed to fetch")) {
+        logMessage += " This might be due to a CORS issue (if running locally), an invalid API key, a network problem, or the WeatherAPI service being temporarily unavailable. Please check the browser's Network tab for more details.";
+    }
+    console.error(logMessage, error);
+    return null; // Caller will use mock data
   }
 }
 
@@ -189,7 +193,7 @@ export default function ScheduleGeneratorPage() {
       } else {
         setWeatherForecastSummary(MOCK_WEATHER_FORECAST_SUMMARY); // Ensure UI shows mock if fetch failed
         setIsWeatherLive(false);
-        toast({ variant: "default", title: "Weather Fetch Failed/Invalid", description: "Using mock weather forecast data." });
+        toast({ variant: "default", title: "Weather Fetch Failed/Invalid", description: "Using mock weather forecast data. Check API key or network." });
       }
     } catch (weatherError: any) {
         console.error("Weather fetch error during generation process:", weatherError);
@@ -312,7 +316,6 @@ export default function ScheduleGeneratorPage() {
           </CardTitle>
           <CardDescription>
             Generate a 24-hour actuator control plan for {FIXED_CROP_TYPE}, adaptable for multiple days, based on sensor trends and weather forecasts.
-            Sensor data is currently mocked for demonstration.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -351,7 +354,7 @@ export default function ScheduleGeneratorPage() {
               />
               <p className="text-xs text-muted-foreground">
                 {isFetchingWeather && !isLoading ? "Fetching live weather..." : `Displayed forecast is ${isWeatherLive ? `live for ${WEATHER_API_LOCATION}` : 'mock data'}.`}
-                 Note: API Key is currently hardcoded; move to .env for production.
+                 Ensure NEXT_PUBLIC_WEATHER_API_KEY is set in .env for live data.
               </p>
             </div>
 
@@ -466,5 +469,3 @@ export default function ScheduleGeneratorPage() {
     </div>
   );
 }
-
-    

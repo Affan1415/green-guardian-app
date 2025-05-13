@@ -30,8 +30,8 @@ const WEATHER_API_KEY = process.env.NEXT_PUBLIC_WEATHER_API_KEY || 'e5016b764c71
 const WEATHER_API_LOCATION = 'Lahore'; // Default location
 
 async function fetchAndFormatWeather(apiKey: string, location: string, days: number = 7): Promise<string | null> {
-  if (!apiKey) {
-    console.warn("Weather API key not provided. Cannot fetch live weather.");
+  if (!apiKey || apiKey === 'your_weather_api_key_here') { // Check for placeholder or missing key
+    console.warn("Weather API key not provided or is a placeholder. Cannot fetch live weather. Using mock data.");
     return "Mock Weather: Sunny, 25-30°C, Humidity 50-60%, No rain expected for next 7 days."; 
   }
   const url = `https://api.weatherapi.com/v1/forecast.json?key=${apiKey}&q=${location}&days=${days}&aqi=no&alerts=no`;
@@ -45,7 +45,7 @@ async function fetchAndFormatWeather(apiKey: string, location: string, days: num
     const data = await response.json();
     
     if (!data.forecast || !data.forecast.forecastday || data.forecast.forecastday.length === 0) {
-      console.warn("WeatherAPI response did not contain valid forecast data.");
+      console.warn("WeatherAPI response did not contain valid forecast data. Using mock data instead.");
       return "Warning: WeatherAPI response invalid. Using mock data instead.";
     }
 
@@ -57,8 +57,13 @@ async function fetchAndFormatWeather(apiKey: string, location: string, days: num
     });
     return summary.trim();
   } catch (error: any) {
-    console.error("Error fetching or formatting weather data:", error);
-    return `Error: Could not fetch weather. ${error.message}. Using mock data instead.`;
+    let detailedMessage = `Error: Could not fetch weather. ${error.message}. Using mock data instead.`;
+    if (error.message && error.message.toLowerCase().includes("failed to fetch")) {
+        detailedMessage += " This might be due to a CORS issue (if running locally), an invalid API key, a network problem, or the WeatherAPI service being temporarily unavailable. Please check the browser's Network tab for more details.";
+    }
+    console.error("Error fetching or formatting weather data:", error, detailedMessage);
+    // Return a generic mock data string or the detailed message for the UI to display if needed
+    return "Mock Weather: Unable to fetch live data. Sunny, 25-30°C, Humidity 50-60%, No rain expected.";
   }
 }
 
@@ -67,7 +72,7 @@ type GrowthStageType = typeof GROWTH_STAGES[number];
 
 const DEFAULT_RECENT_PEST_NOTES = "No specific observations noted.";
 const DEFAULT_PLANT_GROWTH_STAGE: GrowthStageType = "Not Specified";
-const DEFAULT_WEATHER_SUMMARY_FALLBACK = "Default weather summary due to error.";
+const DEFAULT_WEATHER_SUMMARY_FALLBACK = "Default weather summary due to error or API key issue.";
 
 
 export default function PestDiseaseOutlookPage() {
@@ -109,7 +114,7 @@ export default function PestDiseaseOutlookPage() {
         setAverageHumidityPercent(avgHumidity);
 
         const forecast = await fetchAndFormatWeather(WEATHER_API_KEY, WEATHER_API_LOCATION, 7);
-        setWeatherForecastSummary(forecast || "Could not fetch weather. Using default summary.");
+        setWeatherForecastSummary(forecast || DEFAULT_WEATHER_SUMMARY_FALLBACK);
 
       } catch (err: any) {
         console.error("Error fetching initial data:", err);
@@ -363,4 +368,3 @@ export default function PestDiseaseOutlookPage() {
     </div>
   );
 }
-
