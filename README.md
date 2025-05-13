@@ -63,7 +63,7 @@ while (currentTime <= now) {
 }
 ```
 
-You can use the Firebase Console to manually add a few entries or write a small Node.js script using the Firebase Admin SDK to populate a larger set of dummy data.
+You can use the Firebase Console to manually add a few entries or write a small Node.js script using the Firebase Admin SDK to populate a larger set of dummy data. A sample `dummy-sensor-logs.json` file is provided in the project root which contains a small set of example data points. You can import this JSON directly into your Firebase Realtime Database at the `sensor_logs` path.
 
 ### Data Retention in Firebase
 
@@ -77,3 +77,5 @@ To automatically remove data older than 7 days from the `sensor_logs` path, you 
 This ensures your database doesn't grow indefinitely with old sensor logs.
 
 deploying
+
+```
