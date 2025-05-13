@@ -3,7 +3,7 @@
 
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Slider } from "@/components/ui/slider";
 import { 
   ChevronRight, Cpu, Eye, SlidersHorizontal, TrendingUp, Droplets, Sun, Wind, Thermometer, Sprout, Power, Github, Mail, HelpCircle, Leaf, MessageSquare, ShieldCheck, CalendarClock, Smartphone, LineChart, CloudSun, MousePointerSquareDashed, Scaling, Lightbulb, Waves, Bot as BotIcon, Bug as BugIcon, LayoutGrid, Fan as FanIcon, Workflow, ChevronsUpDown, Brain
@@ -46,6 +46,38 @@ export default function LandingPage() {
       description: "Have questions about coriander? Our specialized AI chatbot, Green Guardian, is here to provide expert advice and tips for successful cultivation."
     }
   ];
+
+  const smartModules = [
+    {
+      icon: CalendarClock,
+      title: "AI Schedule Generator",
+      description: "Let our AI craft optimal 24-hour actuator schedules based on historical sensor data, crop needs, and weather forecasts. Manually refine, save, and export schedules for complete control.",
+      link: "/schedule-generator",
+      linkText: "Plan Your Schedule"
+    },
+    {
+      icon: BotIcon,
+      title: "Expert Coriander AI Support",
+      description: "Have questions about coriander cultivation? \"Green Guardian,\" our specialized AI chatbot, provides instant, expert advice, tips, and troubleshooting for your plants.",
+      link: null, // Chatbot is typically a component, not a page
+      linkText: "Accessible in Dashboard"
+    },
+    {
+      icon: BugIcon,
+      title: "Pest & Disease Outlook",
+      description: "Stay ahead of potential threats. Our AI analyzes environmental data and weather forecasts to predict common coriander pest and disease risks, offering preventative strategies.",
+      link: "/pest-disease-outlook",
+      linkText: "Check Health Outlook"
+    },
+    {
+      icon: LineChart,
+      title: "Historical Data Insights",
+      description: "Track your coriander's environment over time. Interactive charts display trends in temperature, humidity, soil moisture, and light, helping you optimize your growing conditions.",
+      link: "/historical-data",
+      linkText: "Analyze Trends"
+    }
+  ];
+
 
   const whyGreenGuardianBenefits = [
     { icon: Droplets, title: "Precise Irrigation", description: "Coriander needs consistent moisture. GreenGuardian's AI mode and schedulable pump (B3) ensure optimal watering, preventing root rot and drought stress." },
@@ -175,8 +207,46 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* Intelligent Modules Section - NEW */}
+      <section id="smart-modules" className="py-16 md:py-24 bg-emerald-50/70">
+        <div className="container mx-auto px-6">
+          <h2 className="text-3xl md:text-4xl font-bold text-center mb-4 text-primary">Discover Our Intelligent Modules</h2>
+          <p className="text-center text-lg text-gray-600 mb-16 max-w-3xl mx-auto">
+            Dive deeper into the smart features that make GreenGuardian a powerful tool for your coriander cultivation.
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            {smartModules.map((module) => (
+              <Card key={module.title} className="bg-white shadow-xl hover:shadow-2xl transition-shadow duration-300 transform hover:-translate-y-1 flex flex-col">
+                <CardHeader>
+                  <div className="flex items-center gap-3">
+                    <div className="p-3 bg-lime-100 rounded-full shadow-sm"><module.icon className="h-7 w-7 text-lime-600" /></div>
+                    <CardTitle className="text-xl text-emerald-700">{module.title}</CardTitle>
+                  </div>
+                </CardHeader>
+                <CardContent className="flex-grow">
+                  <p className="text-sm text-gray-600 leading-relaxed">
+                    {module.description}
+                  </p>
+                </CardContent>
+                <CardFooter>
+                  {module.link ? (
+                    <Link href={module.link} legacyBehavior passHref>
+                      <Button variant="link" className="text-primary p-0 hover:text-emerald-600">
+                        {module.linkText} <ChevronRight className="ml-1 h-4 w-4" />
+                      </Button>
+                    </Link>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">{module.linkText}</p>
+                  )}
+                </CardFooter>
+              </Card>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* Why GreenGuardian for Coriander Section */}
-      <section id="why-coriander" className="py-16 md:py-24 bg-emerald-50/70">
+      <section id="why-coriander" className="py-16 md:py-24 bg-white">
         <div className="container mx-auto px-6">
           <div className="flex flex-col lg:flex-row items-center gap-12">
             <div className="lg:w-1/2">
@@ -196,7 +266,7 @@ export default function LandingPage() {
               </p>
               <ul className="space-y-5">
                 {whyGreenGuardianBenefits.map((benefit, index) => (
-                  <li key={index} className="flex items-start p-4 bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow">
+                  <li key={index} className="flex items-start p-4 bg-lime-50/80 rounded-lg shadow-md hover:shadow-lg transition-shadow border border-emerald-100">
                     <div className="p-3 bg-green-100 rounded-full mr-4 mt-1 flex-shrink-0 shadow-sm">
                       <benefit.icon className="h-7 w-7 text-green-600" />
                     </div>
@@ -213,13 +283,13 @@ export default function LandingPage() {
       </section>
       
       {/* Detailed Features Showcase */}
-      <section id="detailed-features" className="py-16 md:py-24 bg-white">
+      <section id="detailed-features" className="py-16 md:py-24 bg-emerald-50/60">
         <div className="container mx-auto px-6">
           <h2 className="text-3xl md:text-4xl font-bold text-center mb-4 text-primary">A Closer Look at GreenGuardian's Capabilities</h2>
           <p className="text-center text-lg text-gray-600 mb-16 max-w-3xl mx-auto">Explore the powerful tools GreenGuardian offers to elevate your coriander farming experience from seedling to harvest.</p>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {detailedFeatures.map((feature) => (
-              <Card key={feature.title} className="bg-lime-50/60 shadow-lg hover:shadow-xl transition-shadow duration-300 border-transparent hover:border-emerald-200 transform hover:scale-105 flex flex-col">
+              <Card key={feature.title} className="bg-white shadow-lg hover:shadow-xl transition-shadow duration-300 border-transparent hover:border-emerald-200 transform hover:scale-105 flex flex-col">
                 <CardHeader className="flex-row items-center gap-4 pb-3">
                   <div className="p-3 bg-emerald-100 rounded-full shadow-sm">
                      <feature.icon className="w-8 h-8 text-emerald-600" />
@@ -236,7 +306,7 @@ export default function LandingPage() {
       </section>
 
       {/* Technology Snapshot Section (Sensors & Actuators) */}
-      <section id="technology" className="py-16 md:py-24 bg-green-100/50">
+      <section id="technology" className="py-16 md:py-24 bg-white">
         <div className="container mx-auto px-6">
           <h2 className="text-3xl md:text-4xl font-bold text-center mb-16 text-primary">The Tech Behind Thriving Coriander</h2>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-start">
@@ -244,7 +314,7 @@ export default function LandingPage() {
               <h3 className="text-2xl font-semibold text-emerald-700 mb-8 text-center lg:text-left">Precision Sensors</h3>
               <div className="space-y-8">
                 {sensorTechnology.map((sensor) => (
-                  <Card key={sensor.name} className="flex flex-col sm:flex-row items-center text-left bg-white shadow-lg hover:shadow-xl transition-shadow border-emerald-100 p-5 transform hover:scale-103">
+                  <Card key={sensor.name} className="flex flex-col sm:flex-row items-center text-left bg-lime-50/50 shadow-lg hover:shadow-xl transition-shadow border-emerald-100 p-5 transform hover:scale-103">
                     <div className="relative w-24 h-24 sm:w-28 sm:h-28 mb-4 sm:mb-0 sm:mr-5 flex-shrink-0">
                       <Image
                         src={sensor.imageSrc}
@@ -272,7 +342,7 @@ export default function LandingPage() {
               <h3 className="text-2xl font-semibold text-emerald-700 mb-8 text-center lg:text-left">Smart Actuators</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 {actuatorTechnology.map((actuator) => (
-                  <Card key={actuator.name} className="flex flex-col items-center text-center bg-white shadow-lg hover:shadow-xl transition-shadow border-emerald-100 p-5 transform hover:scale-103">
+                  <Card key={actuator.name} className="flex flex-col items-center text-center bg-lime-50/50 shadow-lg hover:shadow-xl transition-shadow border-emerald-100 p-5 transform hover:scale-103">
                      <div className="p-3 bg-emerald-50 rounded-full mb-3 shadow-sm">
                        <actuator.icon className="h-8 w-8 text-emerald-500" />
                      </div>
@@ -345,6 +415,7 @@ export default function LandingPage() {
               <h5 className="text-lg font-semibold mb-3 text-lime-300">Quick Links</h5>
               <ul className="space-y-2 text-sm">
                 <li><Link href="#features" className="hover:text-lime-200 transition-colors opacity-90 hover:opacity-100">Core Features</Link></li>
+                <li><Link href="#smart-modules" className="hover:text-lime-200 transition-colors opacity-90 hover:opacity-100">Intelligent Modules</Link></li>
                 <li><Link href="#why-coriander" className="hover:text-lime-200 transition-colors opacity-90 hover:opacity-100">Why Coriander?</Link></li>
                 <li><Link href="#detailed-features" className="hover:text-lime-200 transition-colors opacity-90 hover:opacity-100">Detailed Features</Link></li>
                 <li><Link href="#technology" className="hover:text-lime-200 transition-colors opacity-90 hover:opacity-100">Technology Used</Link></li>
