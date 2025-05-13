@@ -44,6 +44,7 @@ const PredictPestDiseaseOutputSchema = z.object({
   predictions: z.array(PestDiseasePredictionDetailSchema).describe("An array of predictions for common coriander pests and diseases."),
   overallOutlook: z.string().describe("A general summary of the pest and disease outlook for coriander based on the analysis."),
   criticalWarnings: z.array(z.string()).optional().describe("Any critical, high-risk warnings that require immediate attention."),
+  predictionMethodologyExplanation: z.string().describe("A general explanation of how the AI arrives at its predictions, focusing on the types of knowledge (botanical, environmental impact on pests/diseases, agricultural practices) it synthesizes, rather than specific cited sources."),
   disclaimer: z.string().default("This is an AI-generated prediction and should be used as a guide. Always consult with local agricultural experts or conduct thorough research for definitive diagnosis and treatment plans. Follow all product label instructions for any treatments applied."),
 });
 export type PredictPestDiseaseOutput = z.infer<typeof PredictPestDiseaseOutputSchema>;
@@ -85,6 +86,7 @@ Key considerations:
     - If applicable, list chemicalTreatmentOptions and include a standard caution about following label instructions and safety.
 - Generate a concise overallOutlook summarizing the findings.
 - If any risks are 'High' or 'Very High', list them as criticalWarnings.
+- Populate the 'predictionMethodologyExplanation' field: Provide a brief paragraph. Start by stating that this analysis is derived from a broad understanding of plant science, including botany and horticulture. Then, explain that the predictions consider how common coriander pests and diseases typically respond to various environmental conditions (such as temperature, humidity, weather patterns like rain) and how the plant's growth stage can influence its susceptibility. Conclude by mentioning that the advice also incorporates general agricultural best practices for coriander cultivation. It's important to clarify this is a synthesis of information, not a real-time search of specific documents or research papers.
 - Always include the standard disclaimer.
 
 Focus on providing practical advice. For example, if high humidity is a factor, suggest improving air circulation as a preventative action.
@@ -95,7 +97,7 @@ Ensure the scientificName is accurate if provided.
 If conditions are generally unfavorable for most common pests/diseases, reflect this in 'Negligible' or 'Low' risk levels and a positive overallOutlook.
 `,
   config: {
-    temperature: 0.5, // Encourage more focused and less random responses for diagnostic tasks
+    temperature: 0.4, // Slightly lower temperature for more deterministic diagnostic-style output
     // safetySettings: [ // Example safety settings
     //   { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' } // Might be needed if discussing pesticides
     // ]
@@ -121,6 +123,11 @@ const predictPestDiseaseFlow = ai.defineFlow(
     if (!output.disclaimer) {
         output.disclaimer = "This is an AI-generated prediction and should be used as a guide. Always consult with local agricultural experts or conduct thorough research for definitive diagnosis and treatment plans. Follow all product label instructions for any treatments applied.";
     }
+    // Ensure predictionMethodologyExplanation is present, provide a fallback if necessary
+     if (!output.predictionMethodologyExplanation) {
+        output.predictionMethodologyExplanation = "The AI prediction is based on a synthesis of general botanical knowledge, typical pest/disease responses to environmental factors, and common agricultural best practices. It does not involve real-time searching of specific research papers.";
+    }
     return output;
   }
 );
+

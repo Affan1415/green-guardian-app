@@ -8,19 +8,19 @@ import { useToast } from '@/hooks/use-toast';
 import { getSensorHistory } from '@/config/firebase';
 import type { FirebaseRootData, HistoricalDataPoint } from '@/types';
 import { Textarea } from '@/components/ui/textarea';
-import { Loader2, Bug, ShieldAlert, Leaf, Info, Thermometer, Droplets, CircleHelpIcon } from 'lucide-react';
+import { Loader2, Bug, ShieldAlert, Leaf, Info, Thermometer, Droplets, CircleHelpIcon, BookOpenCheck } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { Input } from "@/components/ui/input"; // Added import for Input
+import { Input } from "@/components/ui/input";
 import {
   predictPestDisease,
   type PredictPestDiseaseInput,
   type PredictPestDiseaseOutput,
-  // PredictPestDiseaseInputSchema // Removed import
 } from '@/ai/flows/predict-pest-disease-flow';
-import type { PestDiseasePredictionDetailSchema as PDPSchema } from '@/ai/flows/predict-pest-disease-flow'; // Import type for internal use if needed
+// Explicitly type PDPSchema for clarity, though it's inferred from PredictPestDiseaseOutput
+import type { PestDiseasePredictionDetailSchema as PDPSchemaType } from '@/ai/flows/predict-pest-disease-flow'; 
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
@@ -65,7 +65,6 @@ async function fetchAndFormatWeather(apiKey: string, location: string, days: num
 const GROWTH_STAGES = ["Seedling", "Vegetative", "Mature", "Flowering/Bolting", "Not Specified"] as const;
 type GrowthStageType = typeof GROWTH_STAGES[number];
 
-// Define default values for form fields that were previously derived from schema
 const DEFAULT_RECENT_PEST_NOTES = "No specific observations noted.";
 const DEFAULT_PLANT_GROWTH_STAGE: GrowthStageType = "Not Specified";
 const DEFAULT_WEATHER_SUMMARY_FALLBACK = "Default weather summary due to error.";
@@ -154,7 +153,7 @@ export default function PestDiseaseOutlookPage() {
     }
   };
 
-  const getRiskBadgeVariant = (riskLevel: PDPSchema['riskLevel']): "default" | "secondary" | "destructive" | "outline" => {
+  const getRiskBadgeVariant = (riskLevel: PDPSchemaType['riskLevel']): "default" | "secondary" | "destructive" | "outline" => {
     switch (riskLevel) {
       case 'Very High':
       case 'High':
@@ -275,6 +274,16 @@ export default function PestDiseaseOutlookPage() {
               <h3 className="text-lg font-semibold text-foreground mb-2">Overall Outlook</h3>
               <p className="text-sm text-muted-foreground">{predictionOutput.overallOutlook}</p>
             </div>
+            
+            <div className="p-4 bg-muted/50 rounded-lg border">
+              <h3 className="text-lg font-semibold text-foreground mb-2 flex items-center gap-2">
+                <BookOpenCheck className="h-5 w-5 text-primary" /> Basis of AI Prediction
+              </h3>
+              <p className="text-sm text-muted-foreground italic">
+                {predictionOutput.predictionMethodologyExplanation}
+              </p>
+            </div>
+
 
             <Accordion type="multiple" className="w-full">
               {predictionOutput.predictions.map((pred, index) => (
@@ -285,7 +294,7 @@ export default function PestDiseaseOutlookPage() {
                          {pred.pestOrDiseaseName} 
                          {pred.scientificName && <i className="text-xs text-muted-foreground">({pred.scientificName})</i>}
                        </span>
-                       <Badge variant={getRiskBadgeVariant(pred.riskLevel as PDPSchema['riskLevel'])} className="ml-auto mr-2 capitalize text-xs px-2 py-0.5 h-5">
+                       <Badge variant={getRiskBadgeVariant(pred.riskLevel as PDPSchemaType['riskLevel'])} className="ml-auto mr-2 capitalize text-xs px-2 py-0.5 h-5">
                          {pred.riskLevel} Risk
                        </Badge>
                     </div>
@@ -354,3 +363,4 @@ export default function PestDiseaseOutlookPage() {
     </div>
   );
 }
+
